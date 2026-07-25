@@ -4,6 +4,7 @@ add_library(px_core STATIC
   core.cc
   coordinate.cc
   graph_builder.cc
+  astar.cc
 )
 
 target_include_directories(px_core PUBLIC

@@ -1,0 +1,1 @@
+// service/ — app-layer stub
