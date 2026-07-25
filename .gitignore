@@ -1,0 +1,13 @@
+.claude/
+.agents/
+build/
+.vscode/
+CLAUDE.md
+.note/
+tools/example.py
+/navdata/
+node_modules/
+dist/
+tsconfig.tsbuildinfo
+src/desktop/src-tauri/target/
+bravofinder/
