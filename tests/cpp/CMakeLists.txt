@@ -7,6 +7,7 @@ add_executable(px_tests
   test_graph_builder.cc
   test_constraints.cc
   test_astar.cc
+  test_mora.cc
 )
 
 target_link_libraries(px_tests PRIVATE

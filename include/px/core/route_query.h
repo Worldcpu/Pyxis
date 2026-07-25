@@ -29,7 +29,7 @@ struct RouteQuery {
 
   LevelPreference level = LevelPreference::kNone;
 
-  // 候选航路数（Yen K-最短路径），默认为 1。
+  // 候选航路数（Yen K-最短路径），范围 [1, 8]。
   int max_routes = 1;
 };
 
