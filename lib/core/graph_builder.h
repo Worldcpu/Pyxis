@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "px/core/ident.h"
-#include "px/core/nav_data_ir.h"
+#include "px/module/navdata/nav_data_ir.h"
 #include "px/core/nav_graph.h"
 
 namespace px {
