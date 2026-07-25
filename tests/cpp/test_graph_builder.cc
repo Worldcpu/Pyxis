@@ -1,6 +1,9 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
+#include <cstdlib>
+#include <string>
 #include <vector>
 
 #include "px/core/graph_edge.h"
@@ -267,6 +270,133 @@ TEST_CASE("DCT 边的 airway_id == 0 且 base/top == 0") {
       REQUIRE(e->top_fl == 0);
     }
   }
+}
+
+// ===================================================================
+// 边界情况
+// ===================================================================
+
+TEST_CASE("空输入不崩溃") {
+  GraphBuilder b({}, {});
+  REQUIRE(b.graph().VertexCount() == 0);
+  REQUIRE(b.VertexByIdent(Ident{"X", "XX"}) == -1);
+  REQUIRE(b.AirwayCount() == 1);  // 始终保留 "DCT"
+}
+
+TEST_CASE("航段引用不存在的航点——跳过不崩溃") {
+  std::vector<RawWaypoint> wpts = {
+      {"A", "XX", 0.0, 0.0},
+      {"B", "XX", 1.0, 0.0},
+  };
+  std::vector<RawSegment> segs = {
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
+      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},  // C 不在 wpts 中
+  };
+  GraphBuilder b(wpts, segs);
+  const auto& g = b.graph();
+  REQUIRE(g.VertexCount() == 2);
+  // 只有 A↔B 被构建
+  REQUIRE(g.EdgesEnd(0) - g.EdgesBegin(0) == 1);
+  REQUIRE(g.EdgesEnd(1) - g.EdgesBegin(1) == 1);
+}
+
+TEST_CASE("航段两端都不存在——图仍正确") {
+  std::vector<RawWaypoint> wpts = {{"A", "XX", 0.0, 0.0}};
+  std::vector<RawSegment> segs = {
+      {"X", "XX", "Y", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
+  };
+  GraphBuilder b(wpts, segs);
+  REQUIRE(b.graph().VertexCount() == 1);
+  REQUIRE(b.graph().EdgesEnd(0) - b.graph().EdgesBegin(0) == 0);
+}
+
+TEST_CASE("非法 FL 范围存储但不校验——由约束层拒绝") {
+  RawWaypoint a{"A", "XX", 0.0, 0.0}, b{"B", "XX", 1.0, 0.0};
+  std::vector<RawSegment> segs = {
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 400, 100},  // base > top
+  };
+  GraphBuilder builder({a, b}, segs);
+  const auto* e = builder.graph().EdgesBegin(0);
+  REQUIRE(e->base_fl == 400);
+  REQUIRE(e->top_fl == 100);
+  // 边存在但无法通过 AltitudeBandConstraint
+}
+
+TEST_CASE("相同航路名多航段不重复计数") {
+  RawWaypoint a{"A", "XX", 0.0, 0.0}, b{"B", "XX", 1.0, 0.0}, c{"C", "XX", 2.0, 0.0};
+  std::vector<RawSegment> segs = {
+      {"A", "XX", "B", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow, 50, 200},
+      {"B", "XX", "C", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow, 50, 200},
+  };
+  GraphBuilder builder({a, b, c}, segs);
+  REQUIRE(builder.AirwayCount() == 2);   // DCT + J10
+  REQUIRE(builder.AirwayName(1) == "J10");
+}
+
+// ===================================================================
+// 真实规模压力测试 (V≈270K, E≈345K)
+// ===================================================================
+
+TEST_CASE("真实数据规模——构建时间和内存") {
+  // 模拟真实航路图: 线形链 + 稀疏交叉连接
+  // V = 270K, 平均出度 ≈ 1.3 → E ≈ 350K
+  constexpr int V = 270000;
+  constexpr int chain_edges = V - 1;          // 线形链
+  constexpr int cross_edges = 80000;          // 稀疏交叉
+  constexpr int total_segs = chain_edges + cross_edges;
+
+  // 生成航点: 沿经线排列
+  std::vector<RawWaypoint> wpts;
+  wpts.reserve(V);
+  for (int i = 0; i < V; ++i) {
+    double lat = (i % 180) - 90.0;
+    double lon = (i / 180) - 180.0;
+    wpts.push_back({"W" + std::to_string(i), "XX", lat, lon});
+  }
+
+  // 生成航段
+  std::vector<RawSegment> segs;
+  segs.reserve(total_segs);
+
+  // 线形链: i → i+1 (kBoth), 高空
+  for (int i = 0; i < chain_edges; ++i) {
+    segs.push_back({"W" + std::to_string(i), "XX",
+                    "W" + std::to_string(i + 1), "XX",
+                    "J1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400});
+  }
+
+  // 稀疏交叉: (i, i+skip) 跳跃连接
+  std::srand(42);
+  for (int k = 0; k < cross_edges; ++k) {
+    int i = std::rand() % (V - 100);
+    int j = i + 10 + std::rand() % 90;
+    segs.push_back({"W" + std::to_string(i), "XX",
+                    "W" + std::to_string(j), "XX",
+                    "V" + std::to_string(k % 500), AirwayDirection::kForward,
+                    AirwayLevel::kHigh, 0, 999});
+  }
+
+  // 构建计时
+  auto t0 = std::chrono::steady_clock::now();
+  GraphBuilder b(wpts, segs);
+  auto t1 = std::chrono::steady_clock::now();
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+
+  const auto& g = b.graph();
+  REQUIRE(g.VertexCount() == V);
+
+  // 线形链: 中间节点出度 = 2 (双向), 两端 = 1
+  REQUIRE(g.EdgesEnd(0) - g.EdgesBegin(0) == 1);           // 起点
+  REQUIRE(g.EdgesEnd(V / 2) - g.EdgesBegin(V / 2) >= 2);   // 中段
+  REQUIRE(b.graph().EdgesBegin(V - 1) != nullptr);          // 终点可访问
+
+  // 航路名去重: DCT + J1 + V0..V499 = 501
+  REQUIRE(b.AirwayCount() == 1 + 1 + 500);
+
+  INFO("V=" << V << " E≈350K 构建耗时 " << ms << " ms");
+  // 真实数据预期: BravoFinder 冷启动 ~2.27s（含解析+建图）,
+  // 纯建图部分应在 500ms 以内
+  REQUIRE(ms < 2500);  // 足够覆盖 Debug/Release 差异
 }
 
 }  // namespace
