@@ -1,0 +1,38 @@
+#pragma once
+
+#include <cstdint>
+#include <vector>
+
+#include "px/core/coordinate.h"
+#include "px/core/graph_edge.h"
+
+namespace px {
+
+// 导航航路点上的不可变有向图，以 CSR 格式存储，用于对缓存友好的遍历。
+// 顶点为整数索引；每个顶点携带其坐标，供 A* 计算大圆启发式函数。
+// 通过 GraphBuilder 构建实例。
+class NavGraph {
+ public:
+  NavGraph() = default;
+
+  int VertexCount() const { return static_cast<int>(coords_.size()); }
+
+  const Coordinate& CoordOf(int vertex) const { return coords_[vertex]; }
+
+  // 顶点 v 的出边，以连续区间 [begin, end) 访问。
+  const GraphEdge* EdgesBegin(int vertex) const {
+    return edges_.data() + offsets_[vertex];
+  }
+  const GraphEdge* EdgesEnd(int vertex) const {
+    return edges_.data() + offsets_[vertex + 1];
+  }
+
+ private:
+  friend class GraphBuilder;
+
+  std::vector<Coordinate> coords_;  // 逐顶点坐标，大小 V
+  std::vector<int> offsets_;        // CSR 行偏移，大小 V + 1
+  std::vector<GraphEdge> edges_;    // CSR 边数组，大小 E
+};
+
+}  // namespace px
