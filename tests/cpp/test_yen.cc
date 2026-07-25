@@ -6,6 +6,7 @@
 #include <set>
 #include <string>
 
+#include "bravo_yen.h"
 #include "graph_builder.h"
 #include "px/core/astar.h"
 #include "px/module/router/yen.h"
@@ -436,6 +437,89 @@ TEST_CASE("Yen: Lawler vs 朴素 Yen (200 随机图)") {
   }
   CHECK(checked > 150);
   INFO("checked " << checked << " random graphs");
+}
+
+// ── Pyxis vs bravo (CostOfPath+SelectEdge) 对比 ──
+// 验证边序列存储方案与 bravofinder 原版输出完全一致
+TEST_CASE("Yen: Pyxis vs bravo Yen (200 随机图)") {
+  std::mt19937 rng(0xC0DE);
+  std::uniform_int_distribution<int> n_dist(3, 15);
+  int checked = 0;
+  for (int t = 0; t < 200; ++t) {
+    int n = n_dist(rng);
+    auto [w, s] = MakeRandom(rng, n, n);
+    GraphBuilder b(w, s);
+    std::uniform_int_distribution<int> vpick(0, n - 1);
+    int start = vpick(rng), goal = vpick(rng);
+    if (start == goal) continue;
+    int k = 1 + (t % 8);
+
+    // Pyxis: 边序列 + O(1) cumulative_cost
+    auto pyxis = FindKShortestPaths(b.graph(), start, goal, k, YenOptions{});
+    // bravo: CostOfPath + SelectEdge（bravofinder 原版逻辑）
+    auto bravo = bravo::FindKShortestPaths(b.graph(), start, goal, k,
+                                           SearchOptions{});
+
+    REQUIRE(pyxis.has_value());
+    REQUIRE(pyxis->size() == bravo.size());
+    for (size_t i = 0; i < pyxis->size(); ++i) {
+      INFO("trial=" << t << " i=" << i);
+      CHECK((*pyxis)[i].vertices == bravo[i].vertices);
+      CHECK((*pyxis)[i].cost == bravo[i].cost);
+    }
+    ++checked;
+  }
+  CHECK(checked > 150);
+  INFO("Pyxis vs bravo: " << checked << " random graphs");
+}
+
+// ── Pyxis vs bravo 性能对比 ──
+TEST_CASE("Benchmark: Pyxis vs bravo 2K k=5") {
+  constexpr int V = 2000;
+  constexpr int extra = 1000;
+  // 确定性随机图（固定种子）
+  std::mt19937 rng(42);
+  std::uniform_real_distribution<double> lat(-2.0, 2.0);
+  std::uniform_real_distribution<double> lon(0.0, 6.0);
+  std::vector<RawWaypoint> w;
+  for (int i = 0; i < V; ++i)
+    w.push_back({"W" + std::to_string(i), "ZZ", lat(rng), lon(rng)});
+  std::vector<RawSegment> s;
+  for (int i = 0; i + 1 < V; ++i)
+    s.push_back({"W" + std::to_string(i), "ZZ", "W" + std::to_string(i + 1),
+                 "ZZ", "R0", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999});
+  std::uniform_int_distribution<int> pick(0, V - 1);
+  for (int e = 0; e < extra; ++e) {
+    int a = pick(rng), b = pick(rng);
+    if (a != b)
+      s.push_back({"W" + std::to_string(a), "ZZ", "W" + std::to_string(b),
+                   "ZZ", "X" + std::to_string(e), AirwayDirection::kBoth,
+                   AirwayLevel::kHigh, 0, 999});
+  }
+  GraphBuilder b(w, s);
+  const auto& g = b.graph();
+  INFO("V=" << g.VertexCount() << " E=" << g.EdgeCount());
+
+  const int start = 0, goal = V - 1, k = 5;
+
+  // Pyxis（边序列 + O(1) cumulative_cost）
+  auto t0 = std::chrono::steady_clock::now();
+  auto p = FindKShortestPaths(g, start, goal, k, YenOptions{});
+  auto t1 = std::chrono::steady_clock::now();
+  auto pyxis_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+
+  // bravo（CostOfPath + SelectEdge）
+  t0 = std::chrono::steady_clock::now();
+  auto bv = bravo::FindKShortestPaths(g, start, goal, k, SearchOptions{});
+  t1 = std::chrono::steady_clock::now();
+  auto bravo_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+
+  REQUIRE(p.has_value());
+  REQUIRE(p->size() == bv.size());
+
+  INFO("Pyxis: " << pyxis_ms << " ms | bravo: " << bravo_ms << " ms | paths=" << p->size());
+  // 性能不应劣于 bravo 原版
+  CHECK(pyxis_ms <= bravo_ms + 500);
 }
 
 }  // namespace

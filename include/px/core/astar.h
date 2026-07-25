@@ -99,4 +99,10 @@ ShortestPath FindShortestPath(const NavGraph& graph,
 ShortestPath FindShortestPath(const NavGraph& graph,
                               int start, int goal);
 
+// 在 u→v 的所有平行边中选最便宜的可通行边（距离 + 软罚分），
+// 与 A* 边松弛使用完全相同的约束评估逻辑。用于 CostOfPath 路径代价重算。
+// 无合法边时返回 nullptr。
+const GraphEdge* SelectEdge(const NavGraph& graph, int from, int to,
+                            const SearchOptions& options, double* out_cost);
+
 }  // namespace px

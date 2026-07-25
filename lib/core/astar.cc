@@ -205,4 +205,25 @@ ShortestPath FindShortestPath(const NavGraph& graph, int start, int goal) {
   return FindShortestPath(graph, start, goal, SearchOptions{});
 }
 
+const GraphEdge* SelectEdge(const NavGraph& graph, int from, int to,
+                            const SearchOptions& options, double* out_cost) {
+  const GraphEdge* best = nullptr;
+  double best_cost = SearchWorkspace::kInfinity;
+  for (const GraphEdge* e = graph.EdgesBegin(from);
+       e != graph.EdgesEnd(from); ++e) {
+    if (e->to != to) continue;
+    double extra_cost = 0.0;
+    if (!EdgeAllowed(options, *e, graph.CoordOf(from), graph.CoordOf(to),
+                     extra_cost))
+      continue;
+    const double total = e->distance_nm + extra_cost;
+    if (total < best_cost) {
+      best_cost = total;
+      best = e;
+    }
+  }
+  if (out_cost != nullptr && best != nullptr) *out_cost = best_cost;
+  return best;
+}
+
 }  // namespace px

@@ -40,15 +40,6 @@ double EdgeDistance(const NavGraph& graph, const std::vector<int>& edges) {
   return d;
 }
 
-// 从边索引序列累积地理距离，构建 cumul[0]=0, cumul[i+1]=cumul[i]+dist[i]。
-std::vector<double> BuildCumulDistance(const NavGraph& graph,
-                                       const std::vector<int>& edges) {
-  std::vector<double> c(edges.size() + 1, 0.0);
-  for (size_t i = 0; i < edges.size(); ++i)
-    c[i + 1] = c[i] + graph.EdgeAt(edges[i]).distance_nm;
-  return c;
-}
-
 }  // namespace
 
 Result<std::vector<ShortestPath>> FindKShortestPaths(
@@ -121,9 +112,9 @@ Result<std::vector<ShortestPath>> FindKShortestPaths(
           FindShortestPath(graph, spur_node, goal, spur_opts, &ws);
       if (!spur.found) continue;
 
-      // 拼接候选路径——O(1) 代价
+      // 拼接候选路径
       Candidate cand;
-      // 顶点：root 去掉重复 spur_node + spur
+      // 顶点：root[0..i-1] + spur[0..m]（去掉重复的 spur_node）
       cand.vertices.assign(root_verts.begin(), root_verts.end() - 1);
       cand.vertices.insert(cand.vertices.end(), spur.vertices.begin(),
                            spur.vertices.end());
@@ -131,10 +122,16 @@ Result<std::vector<ShortestPath>> FindKShortestPaths(
       cand.edges.assign(prev_path.edges.begin(),
                         prev_path.edges.begin() + i);
       cand.edges.insert(cand.edges.end(), spur.edges.begin(), spur.edges.end());
-      // 代价
+      // cost——O(1)：root 前缀代价 + spur 代价
       cand.cost = root_cost + spur.cost;
+      // distance——从 edges 累积（仅浮点加法，无约束评估）
       cand.distance = EdgeDistance(graph, cand.edges);
-      cand.cumulative_cost = BuildCumulDistance(graph, cand.edges);
+      // cumulative_cost——O(1) 偏移构造：root 前缀值 + (root_cost + spur.cumul)
+      cand.cumulative_cost.reserve(cand.vertices.size());
+      for (size_t k = 0; k < i; ++k)
+        cand.cumulative_cost.push_back(prev_path.cumulative_cost[k]);
+      for (size_t k = 0; k < spur.cumulative_cost.size(); ++k)
+        cand.cumulative_cost.push_back(root_cost + spur.cumulative_cost[k]);
       cand.deviation = static_cast<int>(i);
 
       candidates.insert(std::move(cand));
