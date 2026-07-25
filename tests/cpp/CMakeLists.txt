@@ -8,10 +8,12 @@ add_executable(px_tests
   test_constraints.cc
   test_astar.cc
   test_mora.cc
+  test_yen.cc
 )
 
 target_link_libraries(px_tests PRIVATE
   px_core
+  px_router
   px_service
   Catch2::Catch2WithMain
 )

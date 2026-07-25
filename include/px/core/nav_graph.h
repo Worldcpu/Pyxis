@@ -27,6 +27,10 @@ class NavGraph {
     return edges_.data() + offsets_[vertex + 1];
   }
 
+  // 按全局边索引访问任意边（Yen 中从 ShortestPath::edges 还原边属性）。
+  const GraphEdge& EdgeAt(int global_idx) const { return edges_[global_idx]; }
+  int EdgeCount() const { return static_cast<int>(edges_.size()); }
+
  private:
   friend class GraphBuilder;
 
