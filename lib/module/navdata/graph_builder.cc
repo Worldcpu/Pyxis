@@ -41,10 +41,10 @@ GraphBuilder::GraphBuilder(const std::vector<RawWaypoint>& waypoints,
 
   auto add_edge = [&](int from, int to, int airway_id, const RawSegment& s) {
     double dist = graph_.coords_[from].DistanceTo(graph_.coords_[to]);
-    adj[from].push_back(
-        GraphEdge{to, static_cast<float>(dist), static_cast<uint16_t>(airway_id),
-                  static_cast<int16_t>(s.base_fl), static_cast<int16_t>(s.top_fl),
-                  s.level});
+    adj[from].push_back(GraphEdge{to, static_cast<float>(dist),
+                                  static_cast<uint16_t>(airway_id),
+                                  static_cast<int16_t>(s.base_fl),
+                                  static_cast<int16_t>(s.top_fl), s.level});
   };
 
   for (const auto& seg : segments) {

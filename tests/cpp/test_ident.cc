@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <unordered_map>
 
 #include "px/core/ident.h"

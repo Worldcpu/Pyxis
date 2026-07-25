@@ -77,7 +77,8 @@ ShortestPath FindShortestPath(const NavGraph& graph, int start, int goal,
   };
 
   std::priority_queue<QueueNode, std::vector<QueueNode>,
-                      std::greater<QueueNode>> open;
+                      std::greater<QueueNode>>
+      open;
 
   if (ws) {
     ws->Relax(start, 0.0, 0.0, -1, -1);
@@ -113,8 +114,7 @@ ShortestPath FindShortestPath(const NavGraph& graph, int start, int goal,
       // 重建顶点、边索引、累积代价
       std::vector<int> rev_vertices, rev_edges;
       std::vector<double> rev_cumul;
-      for (int v = goal; v != -1;
-           v = ws ? ws->Prev(v) : local_prev[v]) {
+      for (int v = goal; v != -1; v = ws ? ws->Prev(v) : local_prev[v]) {
         rev_vertices.push_back(v);
         rev_cumul.push_back(ws ? ws->G(v) : local_g[v]);
         if (ws) {
@@ -154,8 +154,8 @@ ShortestPath FindShortestPath(const NavGraph& graph, int start, int goal,
       local_closed[u] = 1;
     }
 
-    for (const GraphEdge* e = graph.EdgesBegin(u);
-         e != graph.EdgesEnd(u); ++e) {
+    for (const GraphEdge* e = graph.EdgesBegin(u); e != graph.EdgesEnd(u);
+         ++e) {
       int v = e->to;
 
       if (ws) {
@@ -181,8 +181,7 @@ ShortestPath FindShortestPath(const NavGraph& graph, int start, int goal,
       }
 
       double geo_u = ws ? ws->Geo(u) : local_geo[u];
-      int edge_idx =
-          static_cast<int>(e - graph.EdgesBegin(0));
+      int edge_idx = static_cast<int>(e - graph.EdgesBegin(0));
 
       if (ws) {
         ws->Relax(v, new_g, geo_u + e->distance_nm, u, edge_idx);
@@ -209,8 +208,8 @@ const GraphEdge* SelectEdge(const NavGraph& graph, int from, int to,
                             const SearchOptions& options, double* out_cost) {
   const GraphEdge* best = nullptr;
   double best_cost = SearchWorkspace::kInfinity;
-  for (const GraphEdge* e = graph.EdgesBegin(from);
-       e != graph.EdgesEnd(from); ++e) {
+  for (const GraphEdge* e = graph.EdgesBegin(from); e != graph.EdgesEnd(from);
+       ++e) {
     if (e->to != to) continue;
     double extra_cost = 0.0;
     if (!EdgeAllowed(options, *e, graph.CoordOf(from), graph.CoordOf(to),

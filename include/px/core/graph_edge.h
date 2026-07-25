@@ -29,11 +29,11 @@ enum class AirwayDirection {
 // distance_nm 存为 float（单段精度 ~2 米，远低于噪声），
 // 路径代价由搜索以 double 累加，跨航路不会丢失精度。
 struct GraphEdge {
-  int32_t to = -1;                // 目标顶点索引
-  float distance_nm = 0.0f;       // 大圆距离（海里）
-  uint16_t airway_id = 0;         // 航路名表索引（0 = "DCT" 合成边）
-  int16_t base_fl = 0;            // 最低可用飞行高度层（0 = 无限制）
-  int16_t top_fl = 0;             // 最高可用飞行高度层（0 = 无限制）
+  int32_t to = -1;           // 目标顶点索引
+  float distance_nm = 0.0f;  // 大圆距离（海里）
+  uint16_t airway_id = 0;    // 航路名表索引（0 = "DCT" 合成边）
+  int16_t base_fl = 0;       // 最低可用飞行高度层（0 = 无限制）
+  int16_t top_fl = 0;        // 最高可用飞行高度层（0 = 无限制）
   AirwayLevel level = AirwayLevel::kLow;
 };
 static_assert(sizeof(GraphEdge) == 16, "GraphEdge 预期为 16 字节");

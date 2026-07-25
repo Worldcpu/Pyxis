@@ -20,7 +20,8 @@ class MoraGrid {
  public:
   static constexpr int kLatCount = 180;  // -90 .. +89
   static constexpr int kLonCount = 360;  // -180 .. +179
-  // FloorToInt sentinel for non-finite / out-of-int input (Index rejects idx < 0).
+  // FloorToInt sentinel for non-finite / out-of-int input (Index rejects idx <
+  // 0).
   static constexpr int kInvalidGridIndex = -9999;
   // Reject coordinates that would overflow int when cast; ~1e9 stays in range.
   static constexpr double kFiniteValueBound = 1.0e9;
@@ -78,7 +79,8 @@ class MoraGrid {
     if (!std::isfinite(v) || v < -kFiniteValueBound || v > kFiniteValueBound)
       return kInvalidGridIndex;
     int i = static_cast<int>(v);
-    if (v < 0 && static_cast<double>(i) != v) --i;  // floor toward negative infinity
+    if (v < 0 && static_cast<double>(i) != v)
+      --i;  // floor toward negative infinity
     return i;
   }
 

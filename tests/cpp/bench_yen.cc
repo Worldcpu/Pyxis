@@ -14,19 +14,20 @@ void MakeGraph(int V, int extra, std::vector<px::RawWaypoint>& w,
   std::mt19937 rng(42);
   std::uniform_real_distribution<double> lat(-2.0, 2.0);
   std::uniform_real_distribution<double> lon(0.0, 6.0);
-  w.clear(); s.clear();
+  w.clear();
+  s.clear();
   for (int i = 0; i < V; ++i)
     w.push_back({"W" + std::to_string(i), "ZZ", lat(rng), lon(rng)});
   for (int i = 0; i + 1 < V; ++i)
     s.push_back({"W" + std::to_string(i), "ZZ", "W" + std::to_string(i + 1),
-                 "ZZ", "R0", px::AirwayDirection::kBoth,
-                 px::AirwayLevel::kHigh, 0, 999});
+                 "ZZ", "R0", px::AirwayDirection::kBoth, px::AirwayLevel::kHigh,
+                 0, 999});
   std::uniform_int_distribution<int> pick(0, V - 1);
   for (int e = 0; e < extra; ++e) {
     int a = pick(rng), b = pick(rng);
     if (a != b)
-      s.push_back({"W" + std::to_string(a), "ZZ", "W" + std::to_string(b),
-                   "ZZ", "X" + std::to_string(e), px::AirwayDirection::kBoth,
+      s.push_back({"W" + std::to_string(a), "ZZ", "W" + std::to_string(b), "ZZ",
+                   "X" + std::to_string(e), px::AirwayDirection::kBoth,
                    px::AirwayLevel::kHigh, 0, 999});
   }
 }
@@ -60,8 +61,8 @@ BENCHMARK_DEFINE_F(YenFixture, Pyxis)(benchmark::State& st) {
 
 BENCHMARK_DEFINE_F(YenFixture, Bravo)(benchmark::State& st) {
   for (auto _ : st) {
-    auto r = bravo::FindKShortestPaths(*g_, start_, goal_, k_,
-                                       px::SearchOptions{});
+    auto r =
+        bravo::FindKShortestPaths(*g_, start_, goal_, k_, px::SearchOptions{});
     benchmark::DoNotOptimize(r);
   }
 }
@@ -69,16 +70,22 @@ BENCHMARK_DEFINE_F(YenFixture, Bravo)(benchmark::State& st) {
 // 参数: {V, extra_edges, k}
 // 小规模 → 真实规模（50K = 真实图规模的 1/5）
 BENCHMARK_REGISTER_F(YenFixture, Pyxis)
-    ->Args({500, 300, 3})->Args({500, 300, 5})
-    ->Args({1000, 500, 5})->Args({1000, 500, 8})
-    ->Args({2000, 1000, 5})->Args({2000, 1000, 8})
+    ->Args({500, 300, 3})
+    ->Args({500, 300, 5})
+    ->Args({1000, 500, 5})
+    ->Args({1000, 500, 8})
+    ->Args({2000, 1000, 5})
+    ->Args({2000, 1000, 8})
     ->Args({5000, 2000, 5})
     ->Args({10000, 3000, 3})
     ->Args({50000, 5000, 3});
 BENCHMARK_REGISTER_F(YenFixture, Bravo)
-    ->Args({500, 300, 3})->Args({500, 300, 5})
-    ->Args({1000, 500, 5})->Args({1000, 500, 8})
-    ->Args({2000, 1000, 5})->Args({2000, 1000, 8})
+    ->Args({500, 300, 3})
+    ->Args({500, 300, 5})
+    ->Args({1000, 500, 5})
+    ->Args({1000, 500, 8})
+    ->Args({2000, 1000, 5})
+    ->Args({2000, 1000, 8})
     ->Args({5000, 2000, 5})
     ->Args({10000, 3000, 3})
     ->Args({50000, 5000, 3});

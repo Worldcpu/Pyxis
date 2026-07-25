@@ -5,11 +5,10 @@
 #include <limits>
 #include <vector>
 
+#include "mora_constraint.h"
 #include "px/core/coordinate.h"
 #include "px/core/mora_grid.h"
 #include "px/core/route_query.h"
-
-#include "mora_constraint.h"
 
 namespace px {
 namespace {
@@ -153,8 +152,8 @@ TEST_CASE("真实 MORA: 从 navdata/mora_grid.bin 加载") {
     return;
   }
 
-  std::vector<int16_t> cells(
-      static_cast<size_t>(MoraGrid::kLatCount) * MoraGrid::kLonCount);
+  std::vector<int16_t> cells(static_cast<size_t>(MoraGrid::kLatCount) *
+                             MoraGrid::kLonCount);
   file.read(reinterpret_cast<char*>(cells.data()),
             cells.size() * sizeof(int16_t));
   REQUIRE(file.good());

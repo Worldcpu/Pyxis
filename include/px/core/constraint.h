@@ -8,8 +8,8 @@ namespace px {
 
 // 约束对一条边的评估结果。
 struct EdgeVerdict {
-  bool allowed = true;         // false = 硬约束阻断，此边不可通行
-  double extra_cost = 0.0;     // 软约束罚分（海里等值）
+  bool allowed = true;      // false = 硬约束阻断，此边不可通行
+  double extra_cost = 0.0;  // 软约束罚分（海里等值）
 
   static EdgeVerdict Allow() { return {true, 0.0}; }
   static EdgeVerdict Block() { return {false, 0.0}; }

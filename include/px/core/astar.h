@@ -14,16 +14,18 @@ namespace px {
 
 // A* 搜索结果。
 struct ShortestPath {
-  std::vector<int> vertices;           // 起点→终点的顶点序列；不可达时为空
-  std::vector<int> edges;              // 边索引序列（NavGraph::edges_ 中的偏移）
-  std::vector<double> cumulative_cost; // cumulative_cost[i] = 从起点到 vertices[i] 的有效代价
-  double distance_nm = 0.0;            // 地理距离（不含软罚分）
-  double cost = 0.0;                   // 有效代价 = 距离 + 软罚分
+  std::vector<int> vertices;  // 起点→终点的顶点序列；不可达时为空
+  std::vector<int> edges;  // 边索引序列（NavGraph::edges_ 中的偏移）
+  std::vector<double>
+      cumulative_cost;  // cumulative_cost[i] = 从起点到 vertices[i] 的有效代价
+  double distance_nm = 0.0;  // 地理距离（不含软罚分）
+  double cost = 0.0;         // 有效代价 = 距离 + 软罚分
   bool found = false;
 
   // O(1) 获取前缀代价（Yen 中取 root path 的代价）。
   double PrefixCost(size_t prefix_vertex_count) const {
-    return prefix_vertex_count > 0 ? cumulative_cost[prefix_vertex_count - 1] : 0.0;
+    return prefix_vertex_count > 0 ? cumulative_cost[prefix_vertex_count - 1]
+                                   : 0.0;
   }
 };
 
@@ -90,14 +92,12 @@ struct SearchWorkspace {
 
 // 单源单目标 A*，大圆距离可容许启发式。
 // 传入 workspace 时复用其数组（O(1) 清零）；传 nullptr 时内部分配。
-ShortestPath FindShortestPath(const NavGraph& graph,
-                              int start, int goal,
+ShortestPath FindShortestPath(const NavGraph& graph, int start, int goal,
                               const SearchOptions& options,
                               SearchWorkspace* ws = nullptr);
 
 // 无约束最短路。
-ShortestPath FindShortestPath(const NavGraph& graph,
-                              int start, int goal);
+ShortestPath FindShortestPath(const NavGraph& graph, int start, int goal);
 
 // 在 u→v 的所有平行边中选最便宜的可通行边（距离 + 软罚分），
 // 与 A* 边松弛使用完全相同的约束评估逻辑。用于 CostOfPath 路径代价重算。

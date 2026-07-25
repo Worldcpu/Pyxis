@@ -1,17 +1,15 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <cstdlib>
 #include <random>
 #include <set>
 #include <string>
 
+#include "altitude_constraints.h"
 #include "bravo_yen.h"
 #include "graph_builder.h"
 #include "px/core/astar.h"
 #include "px/module/router/yen.h"
-
-#include "altitude_constraints.h"
 
 namespace px {
 namespace {
@@ -19,27 +17,38 @@ namespace {
 // ── 测试图 ──
 
 std::vector<RawWaypoint> ChainWpts() {
-  return {{"A", "XX", 0.0, 0.0}, {"B", "XX", 0.0, 1.0},
-          {"C", "XX", 0.0, 2.0}, {"D", "XX", 0.0, 3.0}};
+  return {{"A", "XX", 0.0, 0.0},
+          {"B", "XX", 0.0, 1.0},
+          {"C", "XX", 0.0, 2.0},
+          {"D", "XX", 0.0, 3.0}};
 }
 std::vector<RawSegment> ChainSegs() {
   return {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
-      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
-      {"C", "XX", "D", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
+      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
+      {"C", "XX", "D", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
   };
 }
 
 std::vector<RawWaypoint> DiamondWpts() {
-  return {{"A", "XX", 0.0, 2.0}, {"B", "XX", 1.0, 1.0},
-          {"C", "XX", -1.0, 1.0}, {"D", "XX", 0.0, 0.0}};
+  return {{"A", "XX", 0.0, 2.0},
+          {"B", "XX", 1.0, 1.0},
+          {"C", "XX", -1.0, 1.0},
+          {"D", "XX", 0.0, 0.0}};
 }
 std::vector<RawSegment> DiamondSegs() {
   return {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"A", "XX", "C", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"B", "XX", "D", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"C", "XX", "D", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"A", "XX", "C", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"B", "XX", "D", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"C", "XX", "D", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
   };
 }
 
@@ -108,12 +117,17 @@ TEST_CASE("Yen: k=9 错误") {
 // ── 约束 ──
 
 TEST_CASE("Yen: 高度约束阻断全部") {
-  std::vector<RawWaypoint> w = {{"A", "XX", 0.0, 0.0}, {"B", "XX", 0.0, 1.0},
-                                {"C", "XX", 0.0, 2.0}, {"D", "XX", 0.0, 3.0}};
+  std::vector<RawWaypoint> w = {{"A", "XX", 0.0, 0.0},
+                                {"B", "XX", 0.0, 1.0},
+                                {"C", "XX", 0.0, 2.0},
+                                {"D", "XX", 0.0, 3.0}};
   std::vector<RawSegment> s = {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 200},
-      {"B", "XX", "C", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh, 300, 400},
-      {"C", "XX", "D", "XX", "V3", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 200},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 200},
+      {"B", "XX", "C", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       300, 400},
+      {"C", "XX", "D", "XX", "V3", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 200},
   };
   GraphBuilder b(w, s);
 
@@ -166,14 +180,22 @@ TEST_CASE("Yen: 6 顶点图无环且有序") {
       {"3", "XX", 0.0, 1.0}, {"4", "XX", 1.0, 1.0}, {"5", "XX", 2.0, 1.0},
   };
   std::vector<RawSegment> s = {
-      {"0", "XX", "1", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"1", "XX", "2", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"0", "XX", "3", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"3", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"4", "XX", "5", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"1", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"2", "XX", "5", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"0", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
+      {"0", "XX", "1", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"1", "XX", "2", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"0", "XX", "3", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"3", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"4", "XX", "5", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"1", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"2", "XX", "5", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"0", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
   };
   GraphBuilder b(w, s);
 
@@ -199,23 +221,22 @@ TEST_CASE("Benchmark: Yen 10K k=3") {
   std::vector<RawWaypoint> wpts;
   wpts.reserve(V);
   for (int i = 0; i < V; ++i)
-    wpts.push_back({"W" + std::to_string(i), "XX",
-                    (i % 180) - 90.0, (i / 180) - 180.0});
+    wpts.push_back(
+        {"W" + std::to_string(i), "XX", (i % 180) - 90.0, (i / 180) - 180.0});
 
   std::vector<RawSegment> segs;
   segs.reserve(chain_edges + cross_edges);
   for (int i = 0; i < chain_edges; ++i)
-    segs.push_back({"W" + std::to_string(i), "XX",
-                    "W" + std::to_string(i + 1), "XX",
-                    "J1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400});
+    segs.push_back({"W" + std::to_string(i), "XX", "W" + std::to_string(i + 1),
+                    "XX", "J1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100,
+                    400});
 
   std::srand(42);
   for (int k = 0; k < cross_edges; ++k) {
     int i = std::rand() % (V - 100);
     int j = i + 10 + std::rand() % 90;
-    segs.push_back({"W" + std::to_string(i), "XX",
-                    "W" + std::to_string(j), "XX",
-                    "V" + std::to_string(k % 500),
+    segs.push_back({"W" + std::to_string(i), "XX", "W" + std::to_string(j),
+                    "XX", "V" + std::to_string(k % 500),
                     AirwayDirection::kForward, AirwayLevel::kHigh, 0, 999});
   }
 
@@ -225,7 +246,8 @@ TEST_CASE("Benchmark: Yen 10K k=3") {
   auto t0 = std::chrono::steady_clock::now();
   auto yen = FindKShortestPaths(g, 0, V - 1, 3, YenOptions{});
   auto t1 = std::chrono::steady_clock::now();
-  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+  auto ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
 
   REQUIRE(yen.has_value());
   REQUIRE_FALSE(yen->empty());
@@ -292,7 +314,8 @@ TEST_CASE("Yen: 网格图 golden signature (Lawler 回归)") {
   // 对照 bravofinder 的 kGolden
   std::string sig;
   for (const auto& p : *yen) {
-    sig += "cost=" + std::to_string(static_cast<long long>(p.cost * 1e6)) + " [";
+    sig +=
+        "cost=" + std::to_string(static_cast<long long>(p.cost * 1e6)) + " [";
     for (int v : p.vertices) sig += std::to_string(v) + ",";
     sig += "]\n";
   }
@@ -323,11 +346,15 @@ struct RefCandidate {
 
 bool RefCostOfPath(const NavGraph& g, const std::vector<int>& path,
                    double& cost, double& dist) {
-  cost = 0.0; dist = 0.0;
+  cost = 0.0;
+  dist = 0.0;
   for (size_t i = 0; i + 1 < path.size(); ++i) {
     const GraphEdge* found = nullptr;
     for (auto* e = g.EdgesBegin(path[i]); e != g.EdgesEnd(path[i]); ++e) {
-      if (e->to == path[i + 1]) { found = e; break; }
+      if (e->to == path[i + 1]) {
+        found = e;
+        break;
+      }
     }
     if (!found) return false;
     cost += found->distance_nm;
@@ -402,8 +429,8 @@ std::pair<std::vector<RawWaypoint>, std::vector<RawSegment>> MakeRandom(
   for (int e = 0; e < extra_edges; ++e) {
     int a = pick(rng), b = pick(rng);
     if (a != b)
-      s.push_back({"W" + std::to_string(a), "ZZ", "W" + std::to_string(b),
-                   "ZZ", "R" + std::to_string(n + e), AirwayDirection::kBoth,
+      s.push_back({"W" + std::to_string(a), "ZZ", "W" + std::to_string(b), "ZZ",
+                   "R" + std::to_string(n + e), AirwayDirection::kBoth,
                    AirwayLevel::kHigh, 0, 999});
   }
   return {w, s};
@@ -457,8 +484,8 @@ TEST_CASE("Yen: Pyxis vs bravo Yen (200 随机图)") {
     // Pyxis: 边序列 + O(1) cumulative_cost
     auto pyxis = FindKShortestPaths(b.graph(), start, goal, k, YenOptions{});
     // bravo: CostOfPath + SelectEdge（bravofinder 原版逻辑）
-    auto bravo = bravo::FindKShortestPaths(b.graph(), start, goal, k,
-                                           SearchOptions{});
+    auto bravo =
+        bravo::FindKShortestPaths(b.graph(), start, goal, k, SearchOptions{});
 
     REQUIRE(pyxis.has_value());
     REQUIRE(pyxis->size() == bravo.size());
@@ -487,13 +514,14 @@ TEST_CASE("Benchmark: Pyxis vs bravo 2K k=5") {
   std::vector<RawSegment> s;
   for (int i = 0; i + 1 < V; ++i)
     s.push_back({"W" + std::to_string(i), "ZZ", "W" + std::to_string(i + 1),
-                 "ZZ", "R0", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999});
+                 "ZZ", "R0", AirwayDirection::kBoth, AirwayLevel::kHigh, 0,
+                 999});
   std::uniform_int_distribution<int> pick(0, V - 1);
   for (int e = 0; e < extra; ++e) {
     int a = pick(rng), b = pick(rng);
     if (a != b)
-      s.push_back({"W" + std::to_string(a), "ZZ", "W" + std::to_string(b),
-                   "ZZ", "X" + std::to_string(e), AirwayDirection::kBoth,
+      s.push_back({"W" + std::to_string(a), "ZZ", "W" + std::to_string(b), "ZZ",
+                   "X" + std::to_string(e), AirwayDirection::kBoth,
                    AirwayLevel::kHigh, 0, 999});
   }
   GraphBuilder b(w, s);
@@ -506,18 +534,21 @@ TEST_CASE("Benchmark: Pyxis vs bravo 2K k=5") {
   auto t0 = std::chrono::steady_clock::now();
   auto p = FindKShortestPaths(g, start, goal, k, YenOptions{});
   auto t1 = std::chrono::steady_clock::now();
-  auto pyxis_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+  auto pyxis_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
 
   // bravo（CostOfPath + SelectEdge）
   t0 = std::chrono::steady_clock::now();
   auto bv = bravo::FindKShortestPaths(g, start, goal, k, SearchOptions{});
   t1 = std::chrono::steady_clock::now();
-  auto bravo_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+  auto bravo_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
 
   REQUIRE(p.has_value());
   REQUIRE(p->size() == bv.size());
 
-  INFO("Pyxis: " << pyxis_ms << " ms | bravo: " << bravo_ms << " ms | paths=" << p->size());
+  INFO("Pyxis: " << pyxis_ms << " ms | bravo: " << bravo_ms
+                 << " ms | paths=" << p->size());
   // 性能不应劣于 bravo 原版
   CHECK(pyxis_ms <= bravo_ms + 500);
 }

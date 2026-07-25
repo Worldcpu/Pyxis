@@ -20,11 +20,11 @@ struct RawSegment {
   std::string from_region;
   std::string to_ident;
   std::string to_region;
-  std::string airway;                      // 航路名，空串 = DCT
+  std::string airway;  // 航路名，空串 = DCT
   AirwayDirection direction = AirwayDirection::kBoth;
   AirwayLevel level = AirwayLevel::kLow;
-  int base_fl = 0;                         // 底高（FL），0 = 不限
-  int top_fl = 0;                          // 顶高（FL），0 = 不限
+  int base_fl = 0;  // 底高（FL），0 = 不限
+  int top_fl = 0;   // 顶高（FL），0 = 不限
 };
 
 }  // namespace px

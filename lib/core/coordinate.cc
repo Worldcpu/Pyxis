@@ -27,8 +27,8 @@ double Coordinate::DistanceTo(const Coordinate& other) const {
 
   const double sin_lat = std::sin(d_lat / 2.0);
   const double sin_lon = std::sin(d_lon / 2.0);
-  const double a = sin_lat * sin_lat +
-                   std::cos(lat1) * std::cos(lat2) * sin_lon * sin_lon;
+  const double a =
+      sin_lat * sin_lat + std::cos(lat1) * std::cos(lat2) * sin_lon * sin_lon;
   // atan2 形式：对趾点/近对趾点处数值稳定——浮点误差可能
   // 导致 a 略大于 1.0（此时 sqrt(a) > 1 会使 asin 产生 NaN）。
   const double c =

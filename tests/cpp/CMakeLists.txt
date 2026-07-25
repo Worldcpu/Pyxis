@@ -13,6 +13,7 @@ add_executable(px_tests
 
 target_link_libraries(px_tests PRIVATE
   px_core
+  px_navdata
   px_router
   px_service
   Catch2::Catch2WithMain
@@ -32,7 +33,7 @@ endif()
 
 if(benchmark_FOUND)
   add_executable(px_bench bench_yen.cc)
-  target_link_libraries(px_bench PRIVATE px_core px_router benchmark::benchmark)
+  target_link_libraries(px_bench PRIVATE px_core px_navdata px_router benchmark::benchmark)
   target_compile_features(px_bench PRIVATE cxx_std_17)
   message(STATUS "Google Benchmark found — px_bench target enabled")
 else()

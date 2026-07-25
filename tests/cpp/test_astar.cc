@@ -1,28 +1,31 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <cstdlib>
 #include <string>
 
+#include "altitude_constraints.h"
 #include "graph_builder.h"
 #include "px/core/astar.h"
 #include "px/core/constraint.h"
 #include "px/core/route_query.h"
 
-#include "altitude_constraints.h"
-
 namespace px {
 namespace {
 
 std::vector<RawWaypoint> ChainWpts() {
-  return {{"A", "XX", 0.0, 0.0}, {"B", "XX", 0.0, 1.0},
-          {"C", "XX", 0.0, 2.0}, {"D", "XX", 0.0, 3.0}};
+  return {{"A", "XX", 0.0, 0.0},
+          {"B", "XX", 0.0, 1.0},
+          {"C", "XX", 0.0, 2.0},
+          {"D", "XX", 0.0, 3.0}};
 }
 std::vector<RawSegment> ChainSegs() {
   return {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
-      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
-      {"C", "XX", "D", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
+      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
+      {"C", "XX", "D", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
   };
 }
 
@@ -44,7 +47,8 @@ TEST_CASE("A* 起点等于终点") {
 }
 
 TEST_CASE("A* 不可达") {
-  std::vector<RawWaypoint> wpts = {{"A", "XX", 0.0, 0.0}, {"B", "XX", 10.0, 0.0}};
+  std::vector<RawWaypoint> wpts = {{"A", "XX", 0.0, 0.0},
+                                   {"B", "XX", 10.0, 0.0}};
   GraphBuilder b(wpts, {});
   auto p = FindShortestPath(b.graph(), 0, 1);
   REQUIRE(!p.found);
@@ -96,14 +100,22 @@ TEST_CASE("A* vs Dijkstra 代价一致") {
       {"3", "XX", 0.0, 1.0}, {"4", "XX", 1.0, 1.0}, {"5", "XX", 2.0, 1.0},
   };
   std::vector<RawSegment> segs = {
-      {"0", "XX", "1", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"1", "XX", "2", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"0", "XX", "3", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"3", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"4", "XX", "5", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"1", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"2", "XX", "5", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"0", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
+      {"0", "XX", "1", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"1", "XX", "2", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"0", "XX", "3", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"3", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"4", "XX", "5", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"1", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"2", "XX", "5", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"0", "XX", "4", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
   };
   GraphBuilder b(wpts, segs);
   const auto& g = b.graph();
@@ -137,14 +149,14 @@ TEST_CASE("A* vs Dijkstra 代价一致") {
 
 // 生成网格状合成图（模拟真实航路拓扑）。
 // V 顶点排列为 sqrt(V)×sqrt(V) 网格，每顶点连 4 邻居（双向）。
-std::pair<std::vector<RawWaypoint>, std::vector<RawSegment>>
-MakeGridGraph(int side) {
+std::pair<std::vector<RawWaypoint>, std::vector<RawSegment>> MakeGridGraph(
+    int side) {
   int V = side * side;
   std::vector<RawWaypoint> wpts;
   for (int r = 0; r < side; ++r)
     for (int c = 0; c < side; ++c)
-      wpts.push_back({"W" + std::to_string(r * side + c), "XX",
-                       r * 0.5, c * 0.5});
+      wpts.push_back(
+          {"W" + std::to_string(r * side + c), "XX", r * 0.5, c * 0.5});
 
   std::vector<RawSegment> segs;
   for (int r = 0; r < side; ++r) {
@@ -152,12 +164,12 @@ MakeGridGraph(int side) {
       int v = r * side + c;
       if (c + 1 < side)
         segs.push_back({"W" + std::to_string(v), "XX",
-                        "W" + std::to_string(v + 1), "XX",
-                        "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999});
+                        "W" + std::to_string(v + 1), "XX", "V1",
+                        AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999});
       if (r + 1 < side)
         segs.push_back({"W" + std::to_string(v), "XX",
-                        "W" + std::to_string(v + side), "XX",
-                        "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999});
+                        "W" + std::to_string(v + side), "XX", "V1",
+                        AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999});
     }
   }
   return {wpts, segs};
@@ -167,8 +179,7 @@ MakeGridGraph(int side) {
 double BenchmarkAStar(const NavGraph& g, int start, int goal,
                       const SearchOptions& opts, int runs) {
   auto t0 = std::chrono::steady_clock::now();
-  for (int i = 0; i < runs; ++i)
-    FindShortestPath(g, start, goal, opts);
+  for (int i = 0; i < runs; ++i) FindShortestPath(g, start, goal, opts);
   auto t1 = std::chrono::steady_clock::now();
   return std::chrono::duration<double, std::milli>(t1 - t0).count() / runs;
 }
@@ -186,7 +197,8 @@ TEST_CASE("Benchmark: A* 5K 网格图") {
 
   // 预估: A*_单次 × 300
   double yen_est = avg * 300.0;
-  INFO("Estimated Yen(k=5): " << yen_est << " ms (threshold 50 ms → need Lawler)");
+  INFO("Estimated Yen(k=5): " << yen_est
+                              << " ms (threshold 50 ms → need Lawler)");
 }
 
 // 第二轮：270K 真实规模
@@ -199,23 +211,22 @@ TEST_CASE("Benchmark: A* 270K 图") {
   std::vector<RawWaypoint> wpts;
   wpts.reserve(V);
   for (int i = 0; i < V; ++i)
-    wpts.push_back({"W" + std::to_string(i), "XX",
-                    (i % 180) - 90.0, (i / 180) - 180.0});
+    wpts.push_back(
+        {"W" + std::to_string(i), "XX", (i % 180) - 90.0, (i / 180) - 180.0});
 
   std::vector<RawSegment> segs;
   segs.reserve(chain_edges + cross_edges);
   for (int i = 0; i < chain_edges; ++i)
-    segs.push_back({"W" + std::to_string(i), "XX",
-                    "W" + std::to_string(i + 1), "XX",
-                    "J1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400});
+    segs.push_back({"W" + std::to_string(i), "XX", "W" + std::to_string(i + 1),
+                    "XX", "J1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100,
+                    400});
 
   std::srand(42);
   for (int k = 0; k < cross_edges; ++k) {
     int i = std::rand() % (V - 100);
     int j = i + 10 + std::rand() % 90;
-    segs.push_back({"W" + std::to_string(i), "XX",
-                    "W" + std::to_string(j), "XX",
-                    "V" + std::to_string(k % 500),
+    segs.push_back({"W" + std::to_string(i), "XX", "W" + std::to_string(j),
+                    "XX", "V" + std::to_string(k % 500),
                     AirwayDirection::kForward, AirwayLevel::kHigh, 0, 999});
   }
 
@@ -228,7 +239,8 @@ TEST_CASE("Benchmark: A* 270K 图") {
 
   double yen_est = avg * 300.0;
   INFO("Estimated Yen(k=5): " << yen_est << " ms");
-  INFO("Threshold: 50 ms => " << (yen_est < 50.0 ? "naive Yen OK" : "need Lawler"));
+  INFO("Threshold: 50 ms => "
+       << (yen_est < 50.0 ? "naive Yen OK" : "need Lawler"));
 }
 
 TEST_CASE("A* node_blocked 封禁起点") {

@@ -12,7 +12,8 @@ namespace px {
 
 namespace {
 
-// 有向边打包为 64 位键（banned_edges 用）。对照 bravofinder yen_kshortest.cc:18。
+// 有向边打包为 64 位键（banned_edges 用）。对照 bravofinder
+// yen_kshortest.cc:18。
 inline int64_t EdgeKey(int from, int to) {
   return (static_cast<int64_t>(from) << 32) | static_cast<uint32_t>(to);
 }
@@ -86,22 +87,21 @@ Result<std::vector<ShortestPath>> FindKShortestPaths(
         if (p.vertices.size() > i + 1 &&
             std::equal(root_verts.begin(), root_verts.end(),
                        p.vertices.begin())) {
-          banned_edges.insert(
-              EdgeKey(p.vertices[i], p.vertices[i + 1]));
+          banned_edges.insert(EdgeKey(p.vertices[i], p.vertices[i + 1]));
         }
       }
 
       // 封禁节点：root 中除 spur_node 外的节点（防环）
-      const std::unordered_set<int> banned_nodes(
-          root_verts.begin(), root_verts.end() - 1);
+      const std::unordered_set<int> banned_nodes(root_verts.begin(),
+                                                 root_verts.end() - 1);
 
-      // 组合 ban（按值捕获——自包含闭包，对照 bravofinder yen_kshortest.cc:150-164）
+      // 组合 ban（按值捕获——自包含闭包，对照 bravofinder
+      // yen_kshortest.cc:150-164）
       SearchOptions spur_opts = options.search;
       auto base_nb = options.search.node_blocked;
       auto base_eb = options.search.edge_blocked;
       spur_opts.node_blocked = [banned_nodes, base_nb](int v) {
-        return banned_nodes.count(v) != 0 ||
-               (base_nb && base_nb(v));
+        return banned_nodes.count(v) != 0 || (base_nb && base_nb(v));
       };
       spur_opts.edge_blocked = [banned_edges, base_eb](int from, int to) {
         return banned_edges.count(EdgeKey(from, to)) != 0 ||
@@ -119,8 +119,7 @@ Result<std::vector<ShortestPath>> FindKShortestPaths(
       cand.vertices.insert(cand.vertices.end(), spur.vertices.begin(),
                            spur.vertices.end());
       // 边：root_edges + spur_edges
-      cand.edges.assign(prev_path.edges.begin(),
-                        prev_path.edges.begin() + i);
+      cand.edges.assign(prev_path.edges.begin(), prev_path.edges.begin() + i);
       cand.edges.insert(cand.edges.end(), spur.edges.begin(), spur.edges.end());
       // cost——O(1)：root 前缀代价 + spur 代价
       cand.cost = root_cost + spur.cost;

@@ -1,0 +1,23 @@
+BasedOnStyle: Google
+
+# C++17 standard
+Standard: c++17
+
+# Indentation
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+
+# Column limit as per Google style
+ColumnLimit: 80
+
+# Pointer/reference alignment
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+# Include sorting
+SortIncludes: true
+IncludeBlocks: Regroup
+
+# Braces
+BreakBeforeBraces: Attach

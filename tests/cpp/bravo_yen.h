@@ -72,8 +72,7 @@ inline std::vector<px::ShortestPath> FindKShortestPaths(
     for (size_t i = static_cast<size_t>(last_deviation);
          i + 1 < prev_path.size(); ++i) {
       const int spur_node = prev_path[i];
-      const std::vector<int> root(prev_path.begin(),
-                                   prev_path.begin() + i + 1);
+      const std::vector<int> root(prev_path.begin(), prev_path.begin() + i + 1);
 
       std::unordered_set<int64_t> banned_edges;
       for (const px::ShortestPath& p : result) {
@@ -82,15 +81,13 @@ inline std::vector<px::ShortestPath> FindKShortestPaths(
           banned_edges.insert(EdgeKey(p.vertices[i], p.vertices[i + 1]));
         }
       }
-      const std::unordered_set<int> banned_nodes(root.begin(),
-                                                   root.end() - 1);
+      const std::unordered_set<int> banned_nodes(root.begin(), root.end() - 1);
 
       px::SearchOptions spur_opts = base_options;
       auto base_nb = base_options.node_blocked;
       auto base_eb = base_options.edge_blocked;
       spur_opts.node_blocked = [banned_nodes, base_nb](int v) {
-        return banned_nodes.count(v) != 0 ||
-               (base_nb && base_nb(v));
+        return banned_nodes.count(v) != 0 || (base_nb && base_nb(v));
       };
       spur_opts.edge_blocked = [banned_edges, base_eb](int from, int to) {
         return banned_edges.count(EdgeKey(from, to)) != 0 ||

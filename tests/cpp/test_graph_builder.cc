@@ -1,17 +1,15 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <cstdlib>
 #include <string>
 #include <vector>
 
+#include "graph_builder.h"
 #include "px/core/graph_edge.h"
 #include "px/core/ident.h"
-#include "px/module/navdata/nav_data_ir.h"
 #include "px/core/nav_graph.h"
-
-#include "graph_builder.h"
+#include "px/module/navdata/nav_data_ir.h"
 
 namespace px {
 namespace {
@@ -30,9 +28,12 @@ std::vector<RawWaypoint> TriangleWpts() {
 }
 std::vector<RawSegment> TriangleSegs() {
   return {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
-      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
-      {"C", "XX", "A", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
+      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
+      {"C", "XX", "A", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
   };
 }
 
@@ -47,9 +48,12 @@ std::vector<RawWaypoint> ChainWpts() {
 }
 std::vector<RawSegment> ChainSegs() {
   return {
-      {"A", "XX", "B", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow, 50, 200},
-      {"B", "XX", "C", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow, 50, 200},
-      {"C", "XX", "D", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow, 50, 200},
+      {"A", "XX", "B", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow,
+       50, 200},
+      {"B", "XX", "C", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow,
+       50, 200},
+      {"C", "XX", "D", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow,
+       50, 200},
   };
 }
 
@@ -63,8 +67,10 @@ std::vector<RawWaypoint> YWpts() {
 }
 std::vector<RawSegment> YSegs() {
   return {
-      {"A", "XX", "B", "XX", "Y1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"A", "XX", "C", "XX", "Y2", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
+      {"A", "XX", "B", "XX", "Y1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"A", "XX", "C", "XX", "Y2", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
   };
 }
 
@@ -78,9 +84,11 @@ std::vector<RawWaypoint> DeadEndWpts() {
 }
 std::vector<RawSegment> DeadEndSegs() {
   return {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
       // B→C 是 DCT（无航路名），单向 forward — C 只有入边
-      {"B", "XX", "C", "XX", "", AirwayDirection::kForward, AirwayLevel::kBoth, 0, 0},
+      {"B", "XX", "C", "XX", "", AirwayDirection::kForward, AirwayLevel::kBoth,
+       0, 0},
   };
 }
 
@@ -95,10 +103,14 @@ std::vector<RawWaypoint> DiamondWpts() {
 }
 std::vector<RawSegment> DiamondSegs() {
   return {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"A", "XX", "C", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"B", "XX", "D", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
-      {"C", "XX", "D", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh, 0, 999},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"A", "XX", "C", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"B", "XX", "D", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
+      {"C", "XX", "D", "XX", "V2", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       0, 999},
   };
 }
 
@@ -219,7 +231,8 @@ TEST_CASE("多航路图的名称表") {
 
 TEST_CASE("kForward 只有 from→to") {
   std::vector<RawSegment> segs = {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kForward, AirwayLevel::kHigh, 100, 400},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kForward,
+       AirwayLevel::kHigh, 100, 400},
   };
   GraphBuilder b(TriangleWpts(), segs);
   const auto& g = b.graph();
@@ -231,7 +244,8 @@ TEST_CASE("kForward 只有 from→to") {
 
 TEST_CASE("kBackward 只有 to→from") {
   std::vector<RawSegment> segs = {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBackward, AirwayLevel::kHigh, 100, 400},
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBackward,
+       AirwayLevel::kHigh, 100, 400},
   };
   GraphBuilder b(TriangleWpts(), segs);
   const auto& g = b.graph();
@@ -289,8 +303,10 @@ TEST_CASE("航段引用不存在的航点——跳过不崩溃") {
       {"B", "XX", 1.0, 0.0},
   };
   std::vector<RawSegment> segs = {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
-      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},  // C 不在 wpts 中
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
+      {"B", "XX", "C", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},  // C 不在 wpts 中
   };
   GraphBuilder b(wpts, segs);
   const auto& g = b.graph();
@@ -303,7 +319,8 @@ TEST_CASE("航段引用不存在的航点——跳过不崩溃") {
 TEST_CASE("航段两端都不存在——图仍正确") {
   std::vector<RawWaypoint> wpts = {{"A", "XX", 0.0, 0.0}};
   std::vector<RawSegment> segs = {
-      {"X", "XX", "Y", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400},
+      {"X", "XX", "Y", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       100, 400},
   };
   GraphBuilder b(wpts, segs);
   REQUIRE(b.graph().VertexCount() == 1);
@@ -313,7 +330,8 @@ TEST_CASE("航段两端都不存在——图仍正确") {
 TEST_CASE("非法 FL 范围存储但不校验——由约束层拒绝") {
   RawWaypoint a{"A", "XX", 0.0, 0.0}, b{"B", "XX", 1.0, 0.0};
   std::vector<RawSegment> segs = {
-      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh, 400, 100},  // base > top
+      {"A", "XX", "B", "XX", "V1", AirwayDirection::kBoth, AirwayLevel::kHigh,
+       400, 100},  // base > top
   };
   GraphBuilder builder({a, b}, segs);
   const auto* e = builder.graph().EdgesBegin(0);
@@ -323,13 +341,16 @@ TEST_CASE("非法 FL 范围存储但不校验——由约束层拒绝") {
 }
 
 TEST_CASE("相同航路名多航段不重复计数") {
-  RawWaypoint a{"A", "XX", 0.0, 0.0}, b{"B", "XX", 1.0, 0.0}, c{"C", "XX", 2.0, 0.0};
+  RawWaypoint a{"A", "XX", 0.0, 0.0}, b{"B", "XX", 1.0, 0.0},
+      c{"C", "XX", 2.0, 0.0};
   std::vector<RawSegment> segs = {
-      {"A", "XX", "B", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow, 50, 200},
-      {"B", "XX", "C", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow, 50, 200},
+      {"A", "XX", "B", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow,
+       50, 200},
+      {"B", "XX", "C", "XX", "J10", AirwayDirection::kBoth, AirwayLevel::kLow,
+       50, 200},
   };
   GraphBuilder builder({a, b, c}, segs);
-  REQUIRE(builder.AirwayCount() == 2);   // DCT + J10
+  REQUIRE(builder.AirwayCount() == 2);  // DCT + J10
   REQUIRE(builder.AirwayName(1) == "J10");
 }
 
@@ -341,8 +362,8 @@ TEST_CASE("真实数据规模——构建时间和内存") {
   // 模拟真实航路图: 线形链 + 稀疏交叉连接
   // V = 270K, 平均出度 ≈ 1.3 → E ≈ 350K
   constexpr int V = 270000;
-  constexpr int chain_edges = V - 1;          // 线形链
-  constexpr int cross_edges = 80000;          // 稀疏交叉
+  constexpr int chain_edges = V - 1;  // 线形链
+  constexpr int cross_edges = 80000;  // 稀疏交叉
   constexpr int total_segs = chain_edges + cross_edges;
 
   // 生成航点: 沿经线排列
@@ -360,9 +381,9 @@ TEST_CASE("真实数据规模——构建时间和内存") {
 
   // 线形链: i → i+1 (kBoth), 高空
   for (int i = 0; i < chain_edges; ++i) {
-    segs.push_back({"W" + std::to_string(i), "XX",
-                    "W" + std::to_string(i + 1), "XX",
-                    "J1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100, 400});
+    segs.push_back({"W" + std::to_string(i), "XX", "W" + std::to_string(i + 1),
+                    "XX", "J1", AirwayDirection::kBoth, AirwayLevel::kHigh, 100,
+                    400});
   }
 
   // 稀疏交叉: (i, i+skip) 跳跃连接
@@ -370,25 +391,25 @@ TEST_CASE("真实数据规模——构建时间和内存") {
   for (int k = 0; k < cross_edges; ++k) {
     int i = std::rand() % (V - 100);
     int j = i + 10 + std::rand() % 90;
-    segs.push_back({"W" + std::to_string(i), "XX",
-                    "W" + std::to_string(j), "XX",
-                    "V" + std::to_string(k % 500), AirwayDirection::kForward,
-                    AirwayLevel::kHigh, 0, 999});
+    segs.push_back({"W" + std::to_string(i), "XX", "W" + std::to_string(j),
+                    "XX", "V" + std::to_string(k % 500),
+                    AirwayDirection::kForward, AirwayLevel::kHigh, 0, 999});
   }
 
   // 构建计时
   auto t0 = std::chrono::steady_clock::now();
   GraphBuilder b(wpts, segs);
   auto t1 = std::chrono::steady_clock::now();
-  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+  auto ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
 
   const auto& g = b.graph();
   REQUIRE(g.VertexCount() == V);
 
   // 线形链: 中间节点出度 = 2 (双向), 两端 = 1
-  REQUIRE(g.EdgesEnd(0) - g.EdgesBegin(0) == 1);           // 起点
-  REQUIRE(g.EdgesEnd(V / 2) - g.EdgesBegin(V / 2) >= 2);   // 中段
-  REQUIRE(b.graph().EdgesBegin(V - 1) != nullptr);          // 终点可访问
+  REQUIRE(g.EdgesEnd(0) - g.EdgesBegin(0) == 1);          // 起点
+  REQUIRE(g.EdgesEnd(V / 2) - g.EdgesBegin(V / 2) >= 2);  // 中段
+  REQUIRE(b.graph().EdgesBegin(V - 1) != nullptr);        // 终点可访问
 
   // 航路名去重: DCT + J1 + V0..V499 = 501
   REQUIRE(b.AirwayCount() == 1 + 1 + 500);

@@ -1,6 +1,7 @@
-# lib/module/navdata/ — navigation data parsers (SQLite→IR)
+# lib/module/navdata/ — navigation data parsers (SQLite→IR) + graph builder
 add_library(px_navdata STATIC
   nav_data_parser.cc
+  graph_builder.cc
 )
 
 target_include_directories(px_navdata PUBLIC

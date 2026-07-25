@@ -54,8 +54,8 @@ class MoraConstraint : public Constraint {
     const double dlat = to.latitude - from.latitude;
     // 规整经度差为较短弧：例如 +179° → -179° 差 -2° 而非 +358°。
     // 不如此处理则采样点会绕远路读取完全错误的 MORA 格子。
-    const double dlon = std::remainder(to.longitude - from.longitude,
-                                       kDegreesFullCircle);
+    const double dlon =
+        std::remainder(to.longitude - from.longitude, kDegreesFullCircle);
     const double span = std::max(std::abs(dlat), std::abs(dlon));
     const int steps = std::max(1, static_cast<int>(std::ceil(span / 0.5)));
 
@@ -63,10 +63,10 @@ class MoraConstraint : public Constraint {
       const double t = static_cast<double>(i) / steps;
       // 将插值经度回绕至 [-180, 180]，使穿越 antimeridian 的采样点
       // 仍能映射到正确的网格单元格。
-      const double lon = std::remainder(from.longitude + dlon * t,
-                                        kDegreesFullCircle);
-      best = std::max(best, grid_.MoraAt(
-                                Coordinate{from.latitude + dlat * t, lon}));
+      const double lon =
+          std::remainder(from.longitude + dlon * t, kDegreesFullCircle);
+      best = std::max(best,
+                      grid_.MoraAt(Coordinate{from.latitude + dlat * t, lon}));
     }
     return best;
   }
