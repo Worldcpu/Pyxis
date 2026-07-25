@@ -21,18 +21,10 @@ GraphBuilder::GraphBuilder(const std::vector<RawWaypoint>& waypoints,
     ident_index_[key] = i;
   }
 
-  // --- 航路名表："DCT" 保留在索引 0 —— 即使空输入也初始化 ---
+  // --- 航路名表："DCT" 保留在索引 0 ---
   airway_names_.push_back("DCT");
   std::unordered_map<std::string, int> name_to_id;
   name_to_id["DCT"] = 0;
-
-  // 空输入: 无需处理航段
-  if (segments.empty()) {
-    graph_.offsets_.resize(total + 1, 0);
-    has_outbound_.assign(total, false);
-    has_inbound_.assign(total, false);
-    return;
-  }
 
   auto airway_id_for = [&](const std::string& name) -> int {
     if (name.empty()) return 0;  // DCT
