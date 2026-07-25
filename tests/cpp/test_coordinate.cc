@@ -9,7 +9,7 @@ namespace px {
 namespace {
 
 TEST_CASE("Coordinate::DistanceTo JFK→LAX") {
-  // KJFK (40.64, -73.78) → KLAX (33.94, -118.41) ≈ 2147 nm
+  // 纽约肯尼迪 KJFK → 洛杉矶 KLAX，实际距离约 2147 海里
   Coordinate jfk{40.64, -73.78};
   Coordinate lax{33.94, -118.41};
   double d = jfk.DistanceTo(lax);
