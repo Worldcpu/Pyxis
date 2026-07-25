@@ -1,1 +1,1 @@
-// lib/core/ — foundation stub
+// lib/core/ — 基础框架桩

@@ -1,1 +1,1 @@
-// lib/module/navdata/ — navigation data parser stub
+// lib/module/navdata/ — 导航数据解析器桩
