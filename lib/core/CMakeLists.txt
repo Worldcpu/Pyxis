@@ -1,9 +1,10 @@
-# lib/core/ — foundation: domain types, Result, CSR graph, A*, constraints
+# lib/core/ — domain foundation: Coordinate, GraphEdge, Ident, RouteQuery,
+#              NavGraph (CSR), MoraGrid, Constraint interface, Result, Error,
+#              and header-only Constraint implementations.
 
 add_library(px_core STATIC
   core.cc
   coordinate.cc
-  astar.cc
 )
 
 target_include_directories(px_core PUBLIC

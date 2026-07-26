@@ -5,7 +5,7 @@
 
 #include "altitude_constraints.h"
 #include "graph_builder.h"
-#include "px/core/astar.h"
+#include "px/module/router/astar/astar.h"
 #include "px/core/constraint.h"
 #include "px/core/route_query.h"
 

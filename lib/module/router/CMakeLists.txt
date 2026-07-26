@@ -1,7 +1,8 @@
-# lib/module/router/ — K-最短路径寻路模块
+# lib/module/router/ — pathfinding: A* single-path search + Yen K-shortest
 
 add_library(px_router STATIC
-  yen.cc
+  astar/astar.cc
+  yen/yen.cc
 )
 
 target_include_directories(px_router PUBLIC

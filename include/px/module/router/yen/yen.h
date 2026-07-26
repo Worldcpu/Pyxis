@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "px/core/astar.h"
+#include "px/module/router/astar/astar.h"
 #include "px/core/cancel_token.h"
 #include "px/core/result.h"
 

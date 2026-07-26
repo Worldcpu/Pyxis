@@ -1,4 +1,4 @@
-#include "px/core/astar.h"
+#include "px/module/router/astar/astar.h"
 
 #include <algorithm>
 #include <cstdint>

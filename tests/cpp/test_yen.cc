@@ -8,8 +8,8 @@
 #include "altitude_constraints.h"
 #include "bravo_yen.h"
 #include "graph_builder.h"
-#include "px/core/astar.h"
-#include "px/module/router/yen.h"
+#include "px/module/router/astar/astar.h"
+#include "px/module/router/yen/yen.h"
 
 namespace px {
 namespace {

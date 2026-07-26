@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "px/core/astar.h"
+#include "px/module/router/astar/astar.h"
 #include "px/core/nav_graph.h"
 
 namespace bravo {
