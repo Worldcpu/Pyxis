@@ -84,6 +84,7 @@ Pyxis 是一个面向模拟飞行的航空工具箱，支持导入 PMDG / Fenix 
 - JSON 输出使用 **RapidJSON `Writer`**（SAX 流式输出，自动转义）；不使用手写字符串，不使用 nlohmann。
 - 第三方依赖通过 CMake `FetchContent` 获取，**不提交源码进仓库**。
 - **禁止裸 `new`/`delete`，禁止 `goto`，禁止按值捕获异常，禁止 `static`/全局可变状态**。
+- 构建时开启所有警告，调试时使用 fsanitize：`address`、`thread`、`undefined`。
 
 ### React
 
