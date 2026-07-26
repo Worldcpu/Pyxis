@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Pyxis 是一个面向模拟飞行的航空工具箱，支持导入 PMDG / Fenix 导航数据、生成合规航路、制作飞行计划和查阅航图。
 
-项目当前处于 **Phase 3–4** 阶段：核心 C++ 引擎已实现 A\* 搜索、Yen K-最短路径、MORA 地形约束、CSR 图结构、坐标/距离/方位计算、可插拔约束框架和协作式取消令牌。服务层、WebSocket 服务端、桌面端外壳和前端尚未实现。
-
 `bravofinder/` 是 BravoFinder v3 的**航路寻路引擎（routing engine）参考实现**（命名空间 `bf`，C++20），Pyxis（命名空间 `px`，C++17）正将其 graph/A\*/Yen/constraint 等 routing 算法逐模块移植到本仓库中。当 Pyxis 的 routing 代码出现问题时，应查阅 bravofinder 对应实现。bravofinder **不适用**于飞行计划生成、航图查阅等非 routing 模块——那些模块在 bravofinder 中没有参考代码。
 
 ## 技术栈
@@ -24,7 +22,6 @@ Pyxis 是一个面向模拟飞行的航空工具箱，支持导入 PMDG / Fenix 
 - **代码注释使用中文**，对于注释的编写优先对于一整个函数，注释，对于函数内部的注释除非及其难以理解否则不用注释。
 - **Markdown 绝不硬换行（铁律）。** 每个段落——无论是在 `README.md`、`docs/*.md` 还是 GitHub release notes 中——都是**一个逻辑行**；让渲染器自动软换行。不要在段落内部手动折行到 80 列。硬换行的段落在同步到 GitHub releases 时会渲染为破碎/异常的换行，并且会让 diff 变得嘈杂。这与 git 提交信息正文的规则一致（参见 Git）。代码块、表格和 ASCII/框图是预格式化的——保留其原始换行。
 - 对于实现方式的梗概，见 `doc/` 文件夹。
-- 后端开发路线图（Phase 0-8）、优化策略取舍、线程模型设计，见 `.claude/plans/bravofinder-doc-cuddly-toast.md`。
 
 ## 目录结构与架构
 
@@ -73,6 +70,7 @@ Pyxis 是一个面向模拟飞行的航空工具箱，支持导入 PMDG / Fenix 
 2. `service/` 是 app 层库，使用 RapidJSON 将领域结果翻译为 JSON，与 `lib/` 引擎分开编译。
 3. `src/web/` 是独立的 React 项目，通过 WebSocket (`ws://127.0.0.1:port`) 与 C++ 后端进程通信。
 4. Tauri (Rust) **仅负责**窗口控制、系统托盘、自动更新检查以及启动/关停 C++ 后端子进程。**严禁在 Rust 端编写任何业务逻辑或算法**。所有桌面原生交互统一使用 `@tauri-apps/api` 在 React 前端调用。
+5. 一些测试用指令可在 `.note/command.md` 下查阅。
 
 ## 编码规范
 
@@ -105,76 +103,4 @@ Pyxis 是一个面向模拟飞行的航空工具箱，支持导入 PMDG / Fenix 
 - 正文段落为单行不折行（与所有 markdown 一样遵循不硬换行规则——参见语言）；保留 Claude 共同作者签名（`Co-Authored-By: Claude <noreply@anthropic.com>`）。
 - 对于复杂里程碑，**先对齐方案，再实施**；每个主要任务结束时，做一次文档 / memory 交接。
 
-## 构建与命令
-
-### C++ 后端
-
-首次配置需下载第三方依赖（~2min，后续缓存秒级）：
-
-```bash
-cmake -S . -B build -DPX_BUILD_TESTS=ON
-cmake --build build
-ctest --test-dir build --output-on-failure
-```
-
-#### 运行单个测试
-
-```bash
-# 方式一：ctest 按名称正则匹配
-ctest --test-dir build -R "Yen: k=1" --output-on-failure
-
-# 方式二：直接运行测试二进制（支持 Catch2 标签过滤）
-./build/tests/cpp/px_tests "A* 线形链 A→D"
-./build/tests/cpp/px_tests "[benchmark]"    # 仅运行含 [benchmark] 标签的测试
-```
-
-#### 代码格式化
-
-```bash
-# 格式化单个文件
-clang-format -i path/to/file.h
-
-# 格式化所有 C++ 源文件
-find include lib service src tests -name '*.h' -o -name '*.cc' | xargs clang-format -i
-```
-
-`.clang-format` 配置：Google 风格基础，C++17 标准，2 空格缩进，左指针对齐，Include 排序。
-
-#### 性能基准
-
-```bash
-# 需先安装 Google Benchmark（系统级或 ~/.local）
-cmake -S . -B build -DPX_BUILD_TESTS=ON
-cmake --build build --target px_bench
-./build/tests/cpp/px_bench
-```
-
-### React 前端
-
-```bash
-cd src/web
-pnpm install
-pnpm dev              # 开发模式 → localhost:5173
-pnpm build            # 生产构建
-pnpm test             # 前端测试 (Vitest)
-```
-
-### Tauri 桌面端
-
-非交互式 shell 需先加载 Rust 环境：
-
-```bash
-export PATH="$HOME/.cargo/bin:$PATH"
-cd src/desktop/src-tauri
-cargo check           # 类型检查
-cargo build           # 编译
-```
-
-> Rust 通过 rustup 安装在 `~/.cargo/bin`，`.bashrc`/`.profile` 已配置自动加载，但 cmake 构建等非交互式场景需手动 export PATH。
-
-Tauri v2 Linux 系统依赖（首次需一次性安装）：
-
-```bash
-sudo apt install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf
-```
 
