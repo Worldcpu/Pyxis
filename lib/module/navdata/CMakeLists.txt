@@ -2,6 +2,11 @@
 add_library(px_navdata STATIC
   nav_data_parser.cc
   graph_builder.cc
+  sqlite_util.cc
+  dfd1_loader.cc
+  loader_registry.cc
+  bfdb/bfdb_container.cc
+  nav_database.cc
 )
 
 target_include_directories(px_navdata PUBLIC

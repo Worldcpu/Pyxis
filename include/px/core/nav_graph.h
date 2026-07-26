@@ -31,6 +31,11 @@ class NavGraph {
   const GraphEdge& EdgeAt(int global_idx) const { return edges_[global_idx]; }
   int EdgeCount() const { return static_cast<int>(edges_.size()); }
 
+  // 批量只读访问——供 bfdb 序列化使用
+  const std::vector<Coordinate>& coords() const { return coords_; }
+  const std::vector<int>& offsets() const { return offsets_; }
+  const std::vector<GraphEdge>& edges() const { return edges_; }
+
  private:
   friend class GraphBuilder;
 

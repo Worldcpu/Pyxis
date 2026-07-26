@@ -15,7 +15,7 @@ namespace px {
 // Built by the loader via SetCell; queried with MoraAt. A value of 0 means
 // "unknown" (no data for that cell), which callers treat as no lower bound.
 //
-// 对照 bravofinder lib/core/domain/mora_grid.h。
+// Reference from bravofinder lib/core/domain/mora_grid.h。
 class MoraGrid {
  public:
   static constexpr int kLatCount = 180;  // -90 .. +89

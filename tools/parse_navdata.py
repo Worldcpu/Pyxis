@@ -1,22 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""探查 PMDG .s3db / Fenix .db3 的完整 schema。
+
+用法: python3 tools/parse_navdata.py [数据库路径]
+默认: navdata/PMDG_navdata.s3db
+"""
 
 import os
+import sys
 import sqlite3
 
-# 指定你的数据库路径
-DB_PATH = "/home/ppm/Pyxis/lib/fenix_navdata.db3"
+DEFAULT_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "navdata", "PMDG_navdata.s3db")
 
 
-def inspect_db_schema():
-    if not os.path.exists(DB_PATH):
-        print(f"[!] 错误: 未找到数据库文件 {DB_PATH}")
+def inspect_db_schema(db_path):
+    if not os.path.exists(db_path):
+        print(f"[!] 错误: 未找到数据库文件 {db_path}")
         return
 
-    print(f"[*] 正在分析数据库结构: {DB_PATH}")
+    print(f"[*] 正在分析数据库结构: {db_path}")
     print("=" * 70)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     # 1. 查询数据库中所有的表名
@@ -66,4 +72,5 @@ def inspect_db_schema():
 
 
 if __name__ == "__main__":
-    inspect_db_schema()
+    db_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_DB
+    inspect_db_schema(db_path)

@@ -9,6 +9,11 @@ add_executable(px_tests
   test_astar.cc
   test_mora.cc
   test_yen.cc
+  test_bfdb_roundtrip.cc
+)
+
+target_include_directories(px_tests PRIVATE
+  ${CMAKE_SOURCE_DIR}/lib/module/navdata
 )
 
 target_link_libraries(px_tests PRIVATE

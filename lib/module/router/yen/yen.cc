@@ -60,14 +60,14 @@ Result<std::vector<ShortestPath>> FindKShortestPaths(
 
   PathVec result;
   result.push_back(std::move(first));
-  if (k == 1) return std::move(result);
+  if (k == 1) return result;
 
   std::set<Candidate> candidates;
   int last_deviation = 0;
 
   for (int kth = 1; kth < k; ++kth) {
     if (options.cancel && options.cancel->IsCancelled())
-      return std::move(result);
+      return result;
 
     const auto& prev_path = result.back();
     const auto& prev_verts = prev_path.vertices;
@@ -151,7 +151,7 @@ Result<std::vector<ShortestPath>> FindKShortestPaths(
     result.push_back(std::move(next));
   }
 
-  return std::move(result);
+  return result;
 }
 
 }  // namespace px
