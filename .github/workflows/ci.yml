@@ -69,39 +69,41 @@ jobs:
       - name: Configure
         shell: bash
         run: |
+          args=(-B "build/${{ matrix.config }}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DPX_BUILD_TESTS=ON)
+
           case "${{ matrix.config }}" in
             debug)
-              FLAGS="-DCMAKE_BUILD_TYPE=Debug"
-              FLAGS+=" -DCMAKE_CXX_FLAGS=-Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
-              FLAGS+=" -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+              args+=(-DCMAKE_BUILD_TYPE=Debug)
+              args+=(-DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer")
+              args+=(-DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined")
               ;;
             release)
-              FLAGS="-DCMAKE_BUILD_TYPE=Release"
-              FLAGS+=" -DCMAKE_CXX_FLAGS=-O2 -Wall -Wextra"
+              args+=(-DCMAKE_BUILD_TYPE=Release)
+              args+=(-DCMAKE_CXX_FLAGS="-O2 -Wall -Wextra")
               ;;
             tsan)
-              FLAGS="-DCMAKE_BUILD_TYPE=RelWithDebInfo"
-              FLAGS+=" -DCMAKE_CXX_FLAGS=-O1 -g -Wall -Wextra -fsanitize=thread -fno-omit-frame-pointer"
-              FLAGS+=" -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread"
+              args+=(-DCMAKE_BUILD_TYPE=RelWithDebInfo)
+              args+=(-DCMAKE_CXX_FLAGS="-O1 -g -Wall -Wextra -fsanitize=thread -fno-omit-frame-pointer")
+              args+=(-DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread")
               ;;
             windows-debug)
-              FLAGS="-DCMAKE_BUILD_TYPE=Debug"
-              FLAGS+=" -DCMAKE_C_FLAGS=/MP /FS /DNOMINMAX"
-              FLAGS+=" -DCMAKE_CXX_FLAGS=/MP /FS /W3 /WX /EHsc /DNOMINMAX"
+              args+=(-DCMAKE_BUILD_TYPE=Debug)
+              args+=(-DCMAKE_C_FLAGS="/MP /FS /DNOMINMAX")
+              args+=(-DCMAKE_CXX_FLAGS="/MP /FS /W3 /WX /EHsc /DNOMINMAX")
               ;;
             windows-release)
-              FLAGS="-DCMAKE_BUILD_TYPE=Release"
-              FLAGS+=" -DCMAKE_C_FLAGS=/MP /FS /DNOMINMAX"
-              FLAGS+=" -DCMAKE_CXX_FLAGS=/MP /FS /O2 /W3 /EHsc /DNOMINMAX"
+              args+=(-DCMAKE_BUILD_TYPE=Release)
+              args+=(-DCMAKE_C_FLAGS="/MP /FS /DNOMINMAX")
+              args+=(-DCMAKE_CXX_FLAGS="/MP /FS /O2 /W3 /EHsc /DNOMINMAX")
               ;;
           esac
 
-          CCACHE=${{ runner.os != 'Windows' && '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache' || '' }}
+          if [[ "${{ runner.os }}" != "Windows" ]]; then
+            args+=(-DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+            args+=(-DCMAKE_C_COMPILER_LAUNCHER=ccache)
+          fi
 
-          cmake -B build/${{ matrix.config }} \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DPX_BUILD_TESTS=ON \
-            $FLAGS $CCACHE
+          cmake "${args[@]}"
 
       # -- Build ------------------------------------------------------------
       - name: Build
