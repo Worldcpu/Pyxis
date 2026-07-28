@@ -1,4 +1,2 @@
-# lib/module/ — domain modules: navdata, router, procedure, terrain
-
-add_subdirectory(navdata)
-add_subdirectory(router)
+# lib/module/ — domain modules: flightplan
+# (navdata and router replaced by lib/bravofinder submodule)

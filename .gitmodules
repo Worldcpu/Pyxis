@@ -1,0 +1,3 @@
+[submodule "lib/bravofinder"]
+	path = lib/bravofinder
+	url = git@github.com:Worldcpu/BravoFinder.git

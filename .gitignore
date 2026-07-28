@@ -10,5 +10,5 @@ temp/
 node_modules/
 dist/
 tsconfig.tsbuildinfo
-src/desktop/src-tauri/target/
+src/desktop/src-tauri/target/bravofinder/
 bravofinder/
