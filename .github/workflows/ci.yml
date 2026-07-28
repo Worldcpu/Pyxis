@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-latest]
+        config: [debug, release, tsan]
+        exclude:
+          # MSVC does not support -fsanitize; replace with Windows-specific
+          # configs below.
+          - os: windows-latest
+            config: debug
+          - os: windows-latest
+            config: release
+          - os: windows-latest
+            config: tsan
+        include:
+          - os: windows-latest
+            config: windows-debug
+          - os: windows-latest
+            config: windows-release
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      # -- ccache (Linux & macOS only) --------------------------------------
+      - name: Install ccache (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y ccache
+
+      - name: Install ccache (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+          brew install ccache
+
+      - name: Cache ccache (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/ccache
+          key: ccache-linux-${{ matrix.config }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-linux-${{ matrix.config }}-${{ github.ref }}-
+            ccache-linux-${{ matrix.config }}-
+
+      - name: Cache ccache (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-${{ matrix.config }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-macos-${{ matrix.config }}-${{ github.ref }}-
+            ccache-macos-${{ matrix.config }}-
+
+      # -- Configure --------------------------------------------------------
+      - name: Configure
+        shell: bash
+        run: |
+          case "${{ matrix.config }}" in
+            debug)
+              FLAGS="-DCMAKE_BUILD_TYPE=Debug"
+              FLAGS+=" -DCMAKE_CXX_FLAGS=-Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
+              FLAGS+=" -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+              ;;
+            release)
+              FLAGS="-DCMAKE_BUILD_TYPE=Release"
+              FLAGS+=" -DCMAKE_CXX_FLAGS=-O2 -Wall -Wextra"
+              ;;
+            tsan)
+              FLAGS="-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+              FLAGS+=" -DCMAKE_CXX_FLAGS=-O1 -g -Wall -Wextra -fsanitize=thread -fno-omit-frame-pointer"
+              FLAGS+=" -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread"
+              ;;
+            windows-debug)
+              FLAGS="-DCMAKE_BUILD_TYPE=Debug"
+              FLAGS+=" -DCMAKE_C_FLAGS=/MP /FS /DNOMINMAX"
+              FLAGS+=" -DCMAKE_CXX_FLAGS=/MP /FS /W3 /WX /EHsc /DNOMINMAX"
+              ;;
+            windows-release)
+              FLAGS="-DCMAKE_BUILD_TYPE=Release"
+              FLAGS+=" -DCMAKE_C_FLAGS=/MP /FS /DNOMINMAX"
+              FLAGS+=" -DCMAKE_CXX_FLAGS=/MP /FS /O2 /W3 /EHsc /DNOMINMAX"
+              ;;
+          esac
+
+          CCACHE=${{ runner.os != 'Windows' && '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache' || '' }}
+
+          cmake -B build/${{ matrix.config }} \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DPX_BUILD_TESTS=ON \
+            $FLAGS $CCACHE
+
+      # -- Build ------------------------------------------------------------
+      - name: Build
+        shell: bash
+        run: cmake --build build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+
+      # -- Test -------------------------------------------------------------
+      - name: Test
+        shell: bash
+        run: ctest --test-dir build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure

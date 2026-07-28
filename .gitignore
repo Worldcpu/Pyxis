@@ -6,6 +6,7 @@ CLAUDE.md
 .note/
 tools/example.py
 /navdata/
+temp/
 node_modules/
 dist/
 tsconfig.tsbuildinfo
