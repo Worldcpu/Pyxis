@@ -69,7 +69,7 @@ jobs:
       - name: Configure
         shell: bash
         run: |
-          args=(-B "build/${{ matrix.config }}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DPX_BUILD_TESTS=ON)
+          args=(-B "build/${{ matrix.config }}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DPX_BUILD_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5)
 
           case "${{ matrix.config }}" in
             debug)
@@ -88,13 +88,9 @@ jobs:
               ;;
             windows-debug)
               args+=(-DCMAKE_BUILD_TYPE=Debug)
-              args+=(-DCMAKE_C_FLAGS="/MP /FS /DNOMINMAX")
-              args+=(-DCMAKE_CXX_FLAGS="/MP /FS /W3 /WX /EHsc /DNOMINMAX")
               ;;
             windows-release)
               args+=(-DCMAKE_BUILD_TYPE=Release)
-              args+=(-DCMAKE_C_FLAGS="/MP /FS /DNOMINMAX")
-              args+=(-DCMAKE_CXX_FLAGS="/MP /FS /O2 /W3 /EHsc /DNOMINMAX")
               ;;
           esac
 
