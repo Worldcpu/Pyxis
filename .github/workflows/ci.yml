@@ -31,6 +31,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7.0.0
+        with:
+          submodules: true
 
       # -- ccache (Linux & macOS only) --------------------------------------
       - name: Install ccache (Linux)

@@ -10,4 +10,4 @@ target_link_libraries(px_server PRIVATE
   llhttp_shared
 )
 
-target_compile_features(px_server PRIVATE cxx_std_17)
+target_compile_features(px_server PRIVATE cxx_std_20)

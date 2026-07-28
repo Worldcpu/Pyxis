@@ -16,7 +16,7 @@ Pyxis 是一个面向模拟飞行的航空工具箱，以 Bravofinder 为航路�
 ## 语言
 
 - 对话、注释、文档和提交信息默认使用**简体中文**；文档优先使用中文。
-- 工作流使用 Superpower skills 工作流，详情如下：
+- 对于我向你提出的任何一个项目 phase 任务，工作流使用 Superpower skills 工作流，详情如下：
   1. 从 brainstorming 开始 — 永远不要跳过需求分析阶段
   2. 使用 writing-plans 转化设计 — 设计必须转化为可执行计划
   3. 用 using-git-worktrees 隔离环境 — 实现前必须创建干净的工作空间

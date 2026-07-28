@@ -8,39 +8,40 @@
 namespace px {
 
 // 编译期哨兵：bf ErrorCode 末尾值 kFormatMismatch=7。若 bf 新增枚举值
-// 导致此断言失败，请同步更新 ToBfErrorCode() 映射表。
+// 导致此断言失败，请同步更新 FromBfErrorCode() 映射表。
 static_assert(static_cast<int>(bf::ErrorCode::kFormatMismatch) == 7,
-              "bf ErrorCode enum changed — update ToBfErrorCode");
+              "bf ErrorCode enum changed — update FromBfErrorCode");
 
-inline bf::ErrorCode ToBfErrorCode(ErrorCode c) {
+inline ErrorCode FromBfErrorCode(bf::ErrorCode c) {
   switch (c) {
-    case ErrorCode::kInvalidArgument:  return bf::ErrorCode::kInvalidArgument;
-    case ErrorCode::kDataMissing:      return bf::ErrorCode::kDataMissing;
-    case ErrorCode::kParseError:       return bf::ErrorCode::kParseError;
-    case ErrorCode::kNotFound:         return bf::ErrorCode::kAirportNotFound;
-    case ErrorCode::kNoRouteFound:     return bf::ErrorCode::kNoRoute;
-    case ErrorCode::kCacheCorrupt:     return bf::ErrorCode::kCacheCorrupt;
-    case ErrorCode::kFormatMismatch:   return bf::ErrorCode::kFormatMismatch;
+    case bf::ErrorCode::kUnknown:          return ErrorCode::kInternalError;
+    case bf::ErrorCode::kInvalidArgument:  return ErrorCode::kInvalidArgument;
+    case bf::ErrorCode::kDataMissing:      return ErrorCode::kDataMissing;
+    case bf::ErrorCode::kParseError:       return ErrorCode::kParseError;
+    case bf::ErrorCode::kAirportNotFound:  return ErrorCode::kNotFound;
+    case bf::ErrorCode::kNoRoute:          return ErrorCode::kNoRouteFound;
+    case bf::ErrorCode::kCacheCorrupt:     return ErrorCode::kCacheCorrupt;
+    case bf::ErrorCode::kFormatMismatch:   return ErrorCode::kFormatMismatch;
   }
-  return bf::ErrorCode::kUnknown;
+  return ErrorCode::kInternalError;
 }
 
-inline bf::Error ToBfError(const Error& e) {
-  return bf::Error{ToBfErrorCode(e.code), e.message};
+inline Error FromBfError(const bf::Error& e) {
+  return Error{FromBfErrorCode(e.code), e.message};
 }
-inline bf::Error ToBfError(Error&& e) {
-  return bf::Error{ToBfErrorCode(e.code), std::move(e.message)};
+inline Error FromBfError(bf::Error&& e) {
+  return Error{FromBfErrorCode(e.code), std::move(e.message)};
 }
 
 template <typename T>
-bf::Result<T> ToBf(Result<T>&& r) {
-  if (r.has_value()) return bf::Result<T>::Ok(std::move(r).value());
-  return bf::Result<T>::Err(ToBfError(std::move(r).error()));
+Result<T> FromBf(bf::Result<T>&& r) {
+  if (r.has_value()) return Ok(std::move(r).value());
+  return Err<T>(FromBfError(std::move(r).error()));
 }
 
-inline bf::Result<void> ToBf(Result<void>&& r) {
-  if (r.has_value()) return bf::Result<void>::Ok();
-  return bf::Result<void>::Err(ToBfError(std::move(r).error()));
+inline Result<void> FromBf(bf::Result<void>&& r) {
+  if (r.has_value()) return Ok();
+  return Err<void>(FromBfError(std::move(r).error()));
 }
 
 }  // namespace px

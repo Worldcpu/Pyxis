@@ -14,4 +14,4 @@ target_link_libraries(px_service PUBLIC
   px_core
 )
 
-target_compile_features(px_service PUBLIC cxx_std_17)
+target_compile_features(px_service PUBLIC cxx_std_20)

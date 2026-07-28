@@ -15,8 +15,8 @@ using Result = tl::expected<T, Error>;
 // --- 工厂函数 ---
 
 template <class T>
-Result<T> Ok(T&& value) {
-  return Result<T>(std::forward<T>(value));
+Result<std::decay_t<T>> Ok(T&& value) {
+  return Result<std::decay_t<T>>(std::forward<T>(value));
 }
 
 inline Result<void> Ok() { return {}; }
