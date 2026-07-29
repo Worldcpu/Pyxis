@@ -6,6 +6,8 @@ namespace px {
 bool FlightPlanJsonModule::WriteFields(
     rapidjson::Writer<rapidjson::StringBuffer>& writer,
     const JsonContext& ctx) const {
+  (void)writer;
+  (void)ctx;
   // Phase 8: 序列化 flightplan 字段
   return false;
 }
