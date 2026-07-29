@@ -2,6 +2,7 @@
 
 add_library(px_service STATIC
   service.cc
+  json_module.cc
 )
 
 target_include_directories(px_service PUBLIC
