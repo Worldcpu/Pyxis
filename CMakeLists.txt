@@ -1,10 +1,16 @@
 cmake_minimum_required(VERSION 3.26)
 project(px VERSION 0.1.0 LANGUAGES CXX C)
 
-# C++17
+# C++20
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# MSVC 需要 /Zc:preprocessor 才能识别 __VA_OPT__（C++20）。
+# bf engine 的 logging 宏使用了 __VA_OPT__。
+if(MSVC)
+  add_compile_options(/Zc:preprocessor)
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
