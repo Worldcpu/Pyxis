@@ -9,7 +9,7 @@ bool RouteJsonModule::WriteFields(
     rapidjson::Writer<rapidjson::StringBuffer>& writer,
     const JsonContext& ctx) const {
   if (!ctx.route) return false;
-  writer.Key("route");
+  writer.Key(Name());
   bf::WriteRouteJson(writer, *ctx.route);
   return true;
 }

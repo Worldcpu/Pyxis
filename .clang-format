@@ -1,7 +1,7 @@
 BasedOnStyle: Google
 
-# C++17 standard
-Standard: c++17
+# C++20 standard
+Standard: c++20
 
 # Indentation
 IndentWidth: 2

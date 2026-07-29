@@ -1,7 +1,7 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+
+#include <catch2/catch_test_macros.hpp>
 
 #include "px/service/json_module.h"
 
