@@ -9,7 +9,7 @@ namespace px {
 void JsonModuleRegistry::Add(std::unique_ptr<JsonModule> module) {
   // 同名覆盖：找到已有同名模块直接替换。
   auto it = std::find_if(modules_.begin(), modules_.end(), [&](const auto& m) {
-    return module->Name() == m->Name();
+    return std::strcmp(module->Name(), m->Name()) == 0;
   });
   if (it != modules_.end()) {
     *it = std::move(module);
