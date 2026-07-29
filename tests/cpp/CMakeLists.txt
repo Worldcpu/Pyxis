@@ -1,11 +1,13 @@
 # tests/cpp/ — C++ test suite (Catch2)
 
 add_executable(px_tests
+  test_json_module.cc
   test_result.cc
 )
 
 target_link_libraries(px_tests PRIVATE
   px_core
+  px_service
   Catch2::Catch2WithMain
 )
 
