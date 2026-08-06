@@ -109,7 +109,10 @@ jobs:
       # -- Test -------------------------------------------------------------
       - name: Test
         shell: bash
-        run: ctest --test-dir build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure
+        run: |
+          # Windows 上 ctest 中文测试名需 UTF-8 代码页（catch_discover_tests 编码问题）
+          if [[ "$RUNNER_OS" == "Windows" ]]; then chcp.com 65001 > /dev/null; fi
+          ctest --test-dir build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure
 
   # -- Format check (clang-format-18, 只检查不修改) ---------------------------
   format-check:
@@ -161,15 +164,16 @@ jobs:
         run: ctest --test-dir build/coverage -j $(nproc 2>/dev/null || echo 4) --timeout 300 --output-on-failure
 
       # -- Report (gcovr 生成 XML; 仅统计 px 自有代码) ---------------------------
-      # 排除：bf 子模块引擎（0% 覆盖会拖垮门禁，其覆盖归 bravofinder 自己）、
-      #       FetchContent 第三方依赖、测试自身代码
+      # 搜索目录显式枚举 lib/service/tests/cpp：_deps 的依赖库也被 --coverage 编译，
+      # 其相对源码路径无法解析会直接报错，故不进入扫描；
+      # bf 子模块引擎与测试自身代码经 --exclude 从报告剔除（bf 覆盖归 bravofinder 自己）
       - name: Generate coverage report
         shell: bash
         run: |
           sudo apt-get install -y gcovr
-          gcovr build/coverage --root . \
+          gcovr build/coverage/lib build/coverage/service build/coverage/tests/cpp \
+            --root . \
             --exclude '.*/bravofinder/.*' \
-            --exclude '.*/_deps/.*' \
             --exclude '.*/tests/.*' \
             --xml-pretty --output build/coverage/coverage.xml
 
