@@ -90,9 +90,12 @@ jobs:
               ;;
             windows-debug)
               args+=(-DCMAKE_BUILD_TYPE=Debug)
+              # MSVC 警告全开 + 视警告为错误（对齐 bravofinder windows preset）
+              args+=(-DCMAKE_CXX_FLAGS="/W3 /WX")
               ;;
             windows-release)
               args+=(-DCMAKE_BUILD_TYPE=Release)
+              args+=(-DCMAKE_CXX_FLAGS="/W3 /WX")
               ;;
           esac
 
