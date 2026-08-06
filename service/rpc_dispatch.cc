@@ -16,7 +16,6 @@ namespace {
 constexpr int kParseError = -32700;
 constexpr int kInvalidRequest = -32600;
 constexpr int kMethodNotFound = -32601;
-constexpr int kInternalError = -32000;
 
 using Writer = rapidjson::Writer<rapidjson::StringBuffer>;
 
