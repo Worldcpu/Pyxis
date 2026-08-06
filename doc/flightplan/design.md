@@ -1,6 +1,6 @@
 # 飞行计划模块设计
 
-> 状态：grill 收敛（2026-08-06，22 项决策）。决策权威：[glossary.md](glossary.md)；引擎事实：[bravofinder-capability-map.md](bravofinder-capability-map.md)；竞品输入：[competitor-analysis](../competitor-analysis/)。实施按 Phase 9-12 分阶段（见 §11），本文件是实施计划（writing-plans）的输入。燃油引擎（FuelEngine 计划）与本设计衔接点见 §9，燃油域细节留后续专门设计。
+> 状态：grill 收敛（2026-08-06，22 项决策）。决策权威：[glossary.md](glossary.md)；引擎事实：[bravofinder-capability-map.md](bravofinder-capability-map.md)；竞品输入：[competitor-analysis](../../.note/competitor-analysis/)。实施按 Phase 9-12 分阶段（见 §11），本文件是实施计划（writing-plans）的输入。燃油引擎（FuelEngine 计划）与本设计衔接点见 §9，燃油域细节留后续专门设计。
 
 ## 1. 定位与范围
 

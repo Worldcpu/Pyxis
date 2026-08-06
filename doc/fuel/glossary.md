@@ -1,6 +1,6 @@
 # 燃油系统领域词汇表
 
-> 本文件是燃油系统（doc/fuel/）的领域词汇表，随 grill 会话实时维护。只收领域术语与既定决策。基线：~/.claude/plans/sfp-swift-octopus.md（上一轮 27 决策）+ [flightplan 29 决策](../Flightplan/glossary.md)（兼容约束）。相关设计输入：[design.md](../Flightplan/design.md) §9。
+> 本文件是燃油系统（doc/fuel/）的领域词汇表，随 grill 会话实时维护。只收领域术语与既定决策。基线：~/.claude/plans/sfp-swift-octopus.md（上一轮 27 决策）+ [flightplan 29 决策](../flightplan/glossary.md)（兼容约束）。相关设计输入：[design.md](../flightplan/design.md) §9。
 
 ## 术语
 

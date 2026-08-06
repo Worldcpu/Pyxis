@@ -1,6 +1,6 @@
 # 飞行计划模块领域词汇表
 
-> 本文件是飞行计划模块（doc/Flightplan/）的领域词汇表，随 grill 会话实时维护。只收领域术语与既定决策，不收实现细节。相关设计输入：[bravofinder-capability-map.md](bravofinder-capability-map.md)、[competitor-analysis](../competitor-analysis/)。
+> 本文件是飞行计划模块（doc/flightplan/）的领域词汇表，随 grill 会话实时维护。只收领域术语与既定决策，不收实现细节。相关设计输入：[bravofinder-capability-map.md](bravofinder-capability-map.md)、[competitor-analysis](../../.note/competitor-analysis/)。
 
 ## 术语
 

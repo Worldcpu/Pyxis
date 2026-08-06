@@ -12,7 +12,7 @@ namespace px {
 // TODO(T7 缓存架构)：bf 统一缓存头还含 format_version/program_version，
 // OpenCached 时会自行校验（kFormatMismatch）——T7 接线时以 bf OpenCached
 // 为真源做格式兜底，本决策层只作 pre-open 快速通道（见
-// doc/Flightplan/glossary.md 决策 19）。
+// doc/flightplan/glossary.md 决策 19）。
 enum class CacheDecision { kUseCache, kBuildFromSource };
 
 // 缓存 provenance（bf 统一缓存头字段：cycle/loader/data_dir——镜像

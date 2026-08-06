@@ -1,6 +1,6 @@
 # 燃油系统设计
 
-> 状态：grill 收敛（2026-08-06，决策 7 项）。决策权威：[glossary.md](glossary.md)；基线 = [~/.claude/plans/sfp-swift-octopus.md](../../../.claude/plans/sfp-swift-octopus.md)（上一轮 27 决策）+ [flightplan 29 决策](../Flightplan/glossary.md)（兼容约束）。实施时经 writing-plans 展开 Task。燃油域接口位与 flightplan 的衔接见 [design.md §9](../Flightplan/design.md)。
+> 状态：grill 收敛（2026-08-06，决策 7 项）。决策权威：[glossary.md](glossary.md)；基线 = [~/.claude/plans/sfp-swift-octopus.md](../../../.claude/plans/sfp-swift-octopus.md)（上一轮 27 决策）+ [flightplan 29 决策](../flightplan/glossary.md)（兼容约束）。实施时经 writing-plans 展开 Task。燃油域接口位与 flightplan 的衔接见 [design.md §9](../flightplan/design.md)。
 
 ## 1. 定位与范围
 

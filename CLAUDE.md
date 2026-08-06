@@ -29,7 +29,11 @@ Pyxis 是一个面向模拟飞行的航空工具箱，以 Bravofinder 为航路�
 ├── lib/bravofinder/        # BravoFinder v3 引擎 (git submodule, heads/v3, 命名空间 bf)
 │   └── libs/engine/        #   静态库 bravofinder：图算法、I/O、cache、SQLite
 ├── build/                  # 构建产物 (Git 忽略)
-├── doc/BravoFinder/        # 设计文档集——作为 Pyxis 和 bravofinder 的共同架构蓝图
+├── doc/                     # [C++] 模块技术设计——每模块一个文件夹（小写，对齐 lib/）
+│   ├── bravofinder/         #   引擎模块：A*/Yen、合规航路、地形安全等架构算法文档
+│   ├── flightplan/          #   飞行计划模块：design/glossary/ui-spec + adr/
+│   └── fuel/                #   燃油模块：design/glossary + adr/
+├── .note/                   # 本地笔记 (Git 忽略)——总框架设计、调研、实施计划，同样按模块分文件夹
 ├── include/px/             # [C++] 公开头文件
 │   ├── core/               #   px::Result、px::Error、px::ErrorCode
 │   └── module/
@@ -55,6 +59,7 @@ Pyxis 是一个面向模拟飞行的航空工具箱，以 Bravofinder 为航路�
 3. `src/web/` 是独立的 React 项目，通过 WebSocket (`ws://127.0.0.1:port`) 与 C++ 后端进程通信。
 4. Tauri (Rust) **仅负责**窗口控制、系统托盘、自动更新检查以及启动/关停 C++ 后端子进程。**严禁在 Rust 端编写任何业务逻辑或算法**。所有桌面原生交互统一使用 `@tauri-apps/api` 在 React 前端调用。
 5. `tests` 文件夹是测试项目文件夹，其内部如果在调用外部文件，一定不能暴露本地开发环境。以运行时传参方式进行 test。
+6. `doc/` 只放模块技术设计（design/glossary/ADR），每个模块一个文件夹（小写命名，对齐 `lib/`）。总框架设计、调研报告、实施计划等非设计类文档统一放 `.note/`（在 `.gitignore` 中，不入库），同样按模块分文件夹（如 `.note/flightplan/`、`.note/fuel/`）
 
 ### 关键架构关系
 
@@ -64,7 +69,7 @@ Pyxis 是一个面向模拟飞行的航空工具箱，以 Bravofinder 为航路�
 
 **错误处理体系：** `px::Result<T>` 是 `tl::expected<T, Error>` 的别名。`px::Error` 包含 `ErrorCode` 枚举（11 个值：`kNotFound` 到 `kInternalError`）+ 人类可读 `message`。工厂函数 `Ok(value)` / `Err<T>(error)` 构造结果值。bf 层的错误码通过 `FromBfErrorCode()` 映射到 px 层。严禁使用异常进行控制流。
 
-**设计文档集：** `doc/BravoFinder/` 包含 15 篇架构与算法文档（域设计、合规航路、Yen-Lawler 优化、地形安全、线程安全等），是 Pyxis 和 bravofinder 的共同设计蓝图。`doc/superpowers/` 存放 phase 任务的 specs 和 plans。
+**设计文档集：** `doc/bravofinder/` 是引擎模块的架构与算法文档（域设计、合规航路、Yen-Lawler 优化、地形安全、线程安全等），作为 Pyxis 和 bravofinder 的共同设计蓝图；`doc/flightplan/`、`doc/fuel/` 为对应模块设计（design/glossary/ADR）。总框架设计与 phase 实施计划见 `.note/` 对应模块文件夹。
 
 ## 编码规范
 
@@ -146,6 +151,8 @@ find include lib service src tests -name '*.h' -o -name '*.cc' | xargs clang-for
 ```
 
 `.clang-format` 配置：Google 风格基础，2 空格缩进，左指针对齐，Include 排序。*
+
+**CI 门禁：** `.github/workflows/ci.yml` 在 push/PR 上运行三个检查：`build-and-test`（3 平台矩阵：ubuntu-24.04 / macos-26 / windows-latest × debug / release / tsan，含 sanitizer 与 `-Werror`）、`format-check`（clang-format-18 格式检查，本地请保持 18.1.x 与 CI 一致，提交前跑 `clang-format -i`）、`coverage`（Codecov 覆盖率上传，统计 px 自有代码——排除 bf 子模块与第三方依赖——门禁 project ≥ 60% / patch ≥ 80%，配置见 `codecov.yml`）。
 
 ### React 前端
 
