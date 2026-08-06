@@ -2,7 +2,7 @@
 #pragma once
 // px::Result → bf::Result 单向转换适配层。
 
-#include "core/result.h"    // bf::Result, bf::Error, bf::ErrorCode
+#include "core/result.h"     // bf::Result, bf::Error, bf::ErrorCode
 #include "px/core/result.h"  // px::Result, px::Error, px::ErrorCode
 
 namespace px {
@@ -14,14 +14,22 @@ static_assert(static_cast<int>(bf::ErrorCode::kFormatMismatch) == 7,
 
 inline ErrorCode FromBfErrorCode(bf::ErrorCode c) {
   switch (c) {
-    case bf::ErrorCode::kUnknown:          return ErrorCode::kInternalError;
-    case bf::ErrorCode::kInvalidArgument:  return ErrorCode::kInvalidArgument;
-    case bf::ErrorCode::kDataMissing:      return ErrorCode::kDataMissing;
-    case bf::ErrorCode::kParseError:       return ErrorCode::kParseError;
-    case bf::ErrorCode::kAirportNotFound:  return ErrorCode::kNotFound;
-    case bf::ErrorCode::kNoRoute:          return ErrorCode::kNoRouteFound;
-    case bf::ErrorCode::kCacheCorrupt:     return ErrorCode::kCacheCorrupt;
-    case bf::ErrorCode::kFormatMismatch:   return ErrorCode::kFormatMismatch;
+    case bf::ErrorCode::kUnknown:
+      return ErrorCode::kInternalError;
+    case bf::ErrorCode::kInvalidArgument:
+      return ErrorCode::kInvalidArgument;
+    case bf::ErrorCode::kDataMissing:
+      return ErrorCode::kDataMissing;
+    case bf::ErrorCode::kParseError:
+      return ErrorCode::kParseError;
+    case bf::ErrorCode::kAirportNotFound:
+      return ErrorCode::kNotFound;
+    case bf::ErrorCode::kNoRoute:
+      return ErrorCode::kNoRouteFound;
+    case bf::ErrorCode::kCacheCorrupt:
+      return ErrorCode::kCacheCorrupt;
+    case bf::ErrorCode::kFormatMismatch:
+      return ErrorCode::kFormatMismatch;
   }
   return ErrorCode::kInternalError;
 }

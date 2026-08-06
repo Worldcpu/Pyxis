@@ -1,0 +1,14 @@
+# Codecov 覆盖率门禁配置
+# project：整体覆盖率门槛（起步 60%，含 bf 引擎后按首次真实数字校准）
+# patch：PR 新增代码行覆盖率门槛（与 TDD 纪律对齐，新代码必须有测试）
+# 排除项由 workflow 中的 gcovr --exclude 负责（third_party 依赖与测试自身代码不计入）
+coverage:
+  status:
+    project:
+      default:
+        target: 60%
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 1%

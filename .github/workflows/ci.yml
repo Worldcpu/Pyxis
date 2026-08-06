@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15, windows-latest]
+        os: [ubuntu-24.04, macos-26, windows-latest]
         config: [debug, release, tsan]
         exclude:
           # MSVC does not support -fsanitize; replace with Windows-specific
@@ -110,3 +110,74 @@ jobs:
       - name: Test
         shell: bash
         run: ctest --test-dir build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure
+
+  # -- Format check (clang-format-18, 只检查不修改) ---------------------------
+  format-check:
+    runs-on: ubuntu-24.04
+
+    steps:
+      # 不需要 submodule——检查范围排除 lib/bravofinder（独立仓库，自带本地 hook）
+      - uses: actions/checkout@v7.0.0
+
+      - name: Install clang-format
+        run: sudo apt-get install -y clang-format-18
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          find include lib service src tests \( -name '*.h' -o -name '*.cc' \) \
+            ! -path 'lib/bravofinder/*' -print0 \
+            | xargs -0 clang-format-18 --dry-run --Werror
+
+  # -- Code coverage (Codecov 上传, OIDC 免 token) ----------------------------
+  coverage:
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write # Codecov OIDC 身份交换所需
+
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          submodules: true
+
+      # -- Configure --------------------------------------------------------
+      - name: Configure
+        shell: bash
+        run: >
+          cmake -B build/coverage -DCMAKE_BUILD_TYPE=Debug -DPX_BUILD_TESTS=ON
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          -DCMAKE_CXX_FLAGS="--coverage"
+          -DCMAKE_C_FLAGS="--coverage"
+          -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+
+      # -- Build ------------------------------------------------------------
+      - name: Build
+        shell: bash
+        run: cmake --build build/coverage -j $(nproc 2>/dev/null || echo 4)
+
+      # -- Test -------------------------------------------------------------
+      - name: Test
+        shell: bash
+        run: ctest --test-dir build/coverage -j $(nproc 2>/dev/null || echo 4) --timeout 300 --output-on-failure
+
+      # -- Report (gcovr 生成 XML; 仅统计 px 自有代码) ---------------------------
+      # 排除：bf 子模块引擎（0% 覆盖会拖垮门禁，其覆盖归 bravofinder 自己）、
+      #       FetchContent 第三方依赖、测试自身代码
+      - name: Generate coverage report
+        shell: bash
+        run: |
+          sudo apt-get install -y gcovr
+          gcovr build/coverage --root . \
+            --exclude '.*/bravofinder/.*' \
+            --exclude '.*/_deps/.*' \
+            --exclude '.*/tests/.*' \
+            --xml-pretty --output build/coverage/coverage.xml
+
+      # -- Upload (OIDC: GitHub App 已安装, 无 CODECOV_TOKEN) ------------------
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.0.0
+        with:
+          use_oidc: true
+          files: build/coverage/coverage.xml
+          disable_search: true
+          fail_ci_if_error: true
