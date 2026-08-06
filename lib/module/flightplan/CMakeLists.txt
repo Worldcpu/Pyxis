@@ -19,4 +19,6 @@ target_compile_features(px_flightplan PUBLIC cxx_std_20)
 
 # 项目契约禁用异常（px::Result 错误体系）。除语义约束外，-fno-exceptions 消除
 # gcov 给每个调用行配的幻影异常抛出边（永远 0 命中），避免 Codecov 行覆盖口径失真。
-target_compile_options(px_flightplan PRIVATE -fno-exceptions)
+# MSVC 排除：cl 无此选项（D9002 未知选项警告），且 /WX 下会升级为错误。
+target_compile_options(px_flightplan PRIVATE
+  $<$<NOT:$<COMPILE_LANG_AND_ID:CXX,MSVC>>:-fno-exceptions>)

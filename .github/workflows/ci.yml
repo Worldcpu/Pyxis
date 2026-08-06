@@ -90,12 +90,11 @@ jobs:
               ;;
             windows-debug)
               args+=(-DCMAKE_BUILD_TYPE=Debug)
-              # MSVC 警告全开 + 视警告为错误（对齐 bravofinder windows preset）
-              args+=(-DCMAKE_CXX_FLAGS="/W3 /WX")
+              # MSVC /W3 /WX 由 px_core INTERFACE 选项下发（lib/core/CMakeLists.txt），
+              # 走全局 CMAKE_CXX_FLAGS 会覆盖 /EHsc 默认值并误伤第三方/bf 目标
               ;;
             windows-release)
               args+=(-DCMAKE_BUILD_TYPE=Release)
-              args+=(-DCMAKE_CXX_FLAGS="/W3 /WX")
               ;;
           esac
 
@@ -104,9 +103,7 @@ jobs:
             args+=(-DCMAKE_C_COMPILER_LAUNCHER=ccache)
           fi
 
-          # Git Bash 的 MSYS 路径转换会把 /W3 篡改为 C:/Program Files/Git/W3，
-          # 关闭转换保证 MSVC 标志原样传入（bravofinder preset 无此问题因其标志在 JSON 内）
-          MSYS_NO_PATHCONV=1 cmake "${args[@]}"
+          cmake "${args[@]}"
 
       # -- Build ------------------------------------------------------------
       - name: Build
