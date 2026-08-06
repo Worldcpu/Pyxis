@@ -174,16 +174,21 @@ jobs:
 
       # -- Report (gcovr 生成 XML; 仅统计 px 自有代码) ---------------------------
       # 搜索目录收窄到 px 自有目标（lib/module + service + tests/cpp）：
-      # _deps 依赖库与 bf 子模块（其自身也 FetchContent 编译 sqlite3 等）的
-      # gcda 相对源码路径无法解析会直接报错，故整树不进扫描；
-      # 测试自身代码经 --exclude 从报告剔除
+      # _deps 依赖库与 bf 子模块的 gcda 相对源码路径无法解析会直接报错，整树不进扫描；
+      # 头文件（rapidjson/tl::expected/bf route.h 等）随 px 目标的 .gcno 被计入，
+      # 与 tests 一起经 --exclude 剔除——注意 gcovr 7 的 --exclude 按 re.match 锚定
+      # 路径开头匹配，'tests' 只能拦 "tests/..."、'rapidjson' 只能拦 "rapidjson/..."，
+      # 须用 '.*(tests|_deps|bravofinder)' 兼容两种记录形态
       - name: Generate coverage report
         shell: bash
         run: |
           sudo apt-get install -y gcovr
           gcovr build/coverage/lib/module build/coverage/service build/coverage/tests/cpp \
             --root . \
-            --exclude '.*/tests/.*' \
+            --exclude '.*(tests|_deps|bravofinder)'
+          gcovr build/coverage/lib/module build/coverage/service build/coverage/tests/cpp \
+            --root . \
+            --exclude '.*(tests|_deps|bravofinder)' \
             --xml-pretty --output build/coverage/coverage.xml
 
       # -- Upload (OIDC: GitHub App 已安装, 无 CODECOV_TOKEN) ------------------
