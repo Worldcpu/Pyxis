@@ -164,16 +164,16 @@ jobs:
         run: ctest --test-dir build/coverage -j $(nproc 2>/dev/null || echo 4) --timeout 300 --output-on-failure
 
       # -- Report (gcovr 生成 XML; 仅统计 px 自有代码) ---------------------------
-      # 搜索目录显式枚举 lib/service/tests/cpp：_deps 的依赖库也被 --coverage 编译，
-      # 其相对源码路径无法解析会直接报错，故不进入扫描；
-      # bf 子模块引擎与测试自身代码经 --exclude 从报告剔除（bf 覆盖归 bravofinder 自己）
+      # 搜索目录收窄到 px 自有目标（lib/module + service + tests/cpp）：
+      # _deps 依赖库与 bf 子模块（其自身也 FetchContent 编译 sqlite3 等）的
+      # gcda 相对源码路径无法解析会直接报错，故整树不进扫描；
+      # 测试自身代码经 --exclude 从报告剔除
       - name: Generate coverage report
         shell: bash
         run: |
           sudo apt-get install -y gcovr
-          gcovr build/coverage/lib build/coverage/service build/coverage/tests/cpp \
+          gcovr build/coverage/lib/module build/coverage/service build/coverage/tests/cpp \
             --root . \
-            --exclude '.*/bravofinder/.*' \
             --exclude '.*/tests/.*' \
             --xml-pretty --output build/coverage/coverage.xml
 
