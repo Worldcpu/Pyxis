@@ -140,6 +140,39 @@ TEST_CASE("plan JSON: 完整计划渲染（generate 形状）", "[plan][unit]") 
   CHECK(std::string(doc["route"]["arr_connection"].GetString()) == "procedure");
 }
 
+TEST_CASE("plan JSON: 进近/备降段渲染", "[plan][unit]") {
+  auto plan = MakePlan();
+  plan.segments = {
+      {px::SegmentKind::kSid, "ZUCK", "TONIN", "SID", 20.5},
+      {px::SegmentKind::kEnroute, "TONIN", "MAKET", "W80", 850.0},
+      {px::SegmentKind::kStar, "MAKET", "PANKI", "STAR", 30.0},
+      {px::SegmentKind::kApproach, "PANKI", "ZBAA", "ILS01R", 12.0},
+      {px::SegmentKind::kAlternate, "ZBAA", "ZSSS", "DCT", 350.0},
+  };
+
+  // 候选：arr = STAR + 进近段和；备降段不计入分阶段（只进 total）。
+  {
+    const auto doc = Parse(px::RenderPlanCandidatesJson({plan}, 0));
+    REQUIRE(doc.Size() == 1);
+    REQUIRE(doc[0].HasMember("distances"));
+    CHECK(doc[0]["distances"]["dep_nm"].GetDouble() == Catch::Approx(20.5));
+    CHECK(doc[0]["distances"]["enroute_nm"].GetDouble() ==
+          Catch::Approx(850.0));
+    CHECK(doc[0]["distances"]["arr_nm"].GetDouble() == Catch::Approx(42.0));
+    CHECK(doc[0]["total_distance_nm"].GetDouble() == Catch::Approx(1262.5));
+  }
+
+  // 完整计划：kind 字符串覆盖 approach/alternate。
+  {
+    const auto doc = Parse(px::RenderPlanJson(plan));
+    REQUIRE(doc["route"]["segments"].Size() == 5);
+    CHECK(std::string(doc["route"]["segments"][3]["kind"].GetString()) ==
+          "approach");
+    CHECK(std::string(doc["route"]["segments"][4]["kind"].GetString()) ==
+          "alternate");
+  }
+}
+
 TEST_CASE("plan JSON: altitude 规则三态渲染", "[plan][unit]") {
   // 决策 27 三态：kAuto 不塌缩为 "icao"。
   {

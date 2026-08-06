@@ -35,3 +35,19 @@ TEST_CASE("bf 桥接: 空 body 错误 → 兜底文本", "[bf_rpc][unit]") {
   CHECK(r.error_code == 400);
   CHECK(r.error_message == "handler error");
 }
+
+TEST_CASE("bf 桥接: 错误 body 非 JSON → 原样消息", "[bf_rpc][unit]") {
+  // HasParseError() true 侧：非 JSON body 回退原样（404 的 "not found"
+  // 是合法 JSON 串，走的是 IsObject() false 侧——两者之前都没测到）。
+  const auto r = px::FromBfHandlerResult(500, "{broken");
+  REQUIRE(!r.ok);
+  CHECK(r.error_code == 500);
+  CHECK(r.error_message == "{broken");
+}
+
+TEST_CASE("bf 桥接: JsonError 的 error 非字符串 → 原样消息", "[bf_rpc][unit]") {
+  const auto r = px::FromBfHandlerResult(422, R"({"error":123})");
+  REQUIRE(!r.ok);
+  CHECK(r.error_code == 422);
+  CHECK(r.error_message == R"({"error":123})");
+}

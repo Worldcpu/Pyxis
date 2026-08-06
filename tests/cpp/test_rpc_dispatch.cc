@@ -167,3 +167,84 @@ TEST_CASE("RPC: handler 返回数组 result（候选列表形状）", "[rpc][uni
   REQUIRE(doc["result"].IsArray());
   CHECK(doc["result"][0]["route_string"].GetString() == std::string("A B"));
 }
+
+TEST_CASE("RPC: id 白名单全类型回显", "[rpc][unit]") {
+  // 决策 16 白名单：String/Number/Null 原样回显；int/int64/double 已由
+  // 既有用例覆盖，这里补齐 null/string/uint/uint64 四侧。
+  {
+    const auto resp =
+        px::DispatchRpc(R"({"method":"lookup_airports","params":{},"id":null})",
+                        MakeHandlers());
+    REQUIRE(resp.ok);
+    CHECK(resp.json.find("\"id\":null") != std::string::npos);
+  }
+  {
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_airports","params":{},"id":"req-42"})",
+        MakeHandlers());
+    REQUIRE(resp.ok);
+    CHECK(resp.json.find("\"id\":\"req-42\"") != std::string::npos);
+  }
+  {
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_airports","params":{},"id":4000000000})",
+        MakeHandlers());
+    REQUIRE(resp.ok);
+    CHECK(resp.json.find("\"id\":4000000000") != std::string::npos);
+  }
+  {
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_airports","params":{},"id":9223372036854775808})",
+        MakeHandlers());
+    REQUIRE(resp.ok);
+    CHECK(resp.json.find("\"id\":9223372036854775808") != std::string::npos);
+  }
+  // 对象/数组 id 不在白名单 → WriteId 输出 null 兜底。
+  {
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_airports","params":{},"id":[1,2]})",
+        MakeHandlers());
+    REQUIRE(resp.ok);
+    CHECK(resp.json.find("\"id\":null") != std::string::npos);
+  }
+}
+
+TEST_CASE("RPC: method 非字符串与响应边界", "[rpc][unit]") {
+  // method 为数字：短路链 IsString() false 侧 → invalid request。
+  {
+    const auto resp =
+        px::DispatchRpc(R"({"method":123,"params":{},"id":1})", MakeHandlers());
+    REQUIRE(!resp.ok);
+    CHECK(resp.error_code == -32600);
+  }
+  // handler 返回空 result → 仍走 result 包装（!empty() false 侧）。
+  {
+    std::unordered_map<std::string, RpcHandler> handlers = {
+        {"empty_result", [](const rapidjson::Value&) { return OkResult(""); }},
+    };
+    const auto resp = px::DispatchRpc(
+        R"({"method":"empty_result","params":{},"id":1})", handlers);
+    REQUIRE(resp.ok);
+    CHECK(resp.json.find("\"result\"") != std::string::npos);
+  }
+  // 错误消息为空 → 兜底文本 "handler error"。
+  {
+    std::unordered_map<std::string, RpcHandler> handlers = {
+        {"empty_err",
+         [](const rapidjson::Value&) { return ErrResult(404, ""); }},
+    };
+    const auto resp = px::DispatchRpc(
+        R"({"method":"empty_err","params":{},"id":1})", handlers);
+    REQUIRE(!resp.ok);
+    CHECK(resp.error_code == 404);
+    CHECK(resp.json.find("handler error") != std::string::npos);
+  }
+  // 业务错误 + 通知（无 id）：§2.2 静默无响应。
+  {
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_missing","params":{"ids":["XXXX"]}})",
+        MakeHandlers());
+    CHECK(resp.ok);
+    CHECK(resp.json.empty());
+  }
+}

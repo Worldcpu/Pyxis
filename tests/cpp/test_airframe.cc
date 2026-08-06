@@ -68,12 +68,27 @@ TEST_CASE("airframe: 单位重量与升限非正", "[airframe][unit]") {
     REQUIRE(issues.size() == 1);
     CHECK(issues[0].field == "service_ceiling_ft");
   }
+  {
+    auto a = MakeValid();
+    a.unit_bag_kg = 0.0;
+    const auto issues = px::ValidateAirframe(a);
+    REQUIRE(issues.size() == 1);
+    CHECK(issues[0].field == "unit_bag_kg");
+  }
 }
 
-TEST_CASE("airframe: type/variant 必填", "[airframe][unit]") {
+TEST_CASE("airframe: type 必填", "[airframe][unit]") {
   auto a = MakeValid();
   a.type.clear();
   const auto issues = px::ValidateAirframe(a);
   REQUIRE(issues.size() == 1);
   CHECK(issues[0].field == "type");
+}
+
+TEST_CASE("airframe: variant 必填", "[airframe][unit]") {
+  auto a = MakeValid();
+  a.variant.clear();
+  const auto issues = px::ValidateAirframe(a);
+  REQUIRE(issues.size() == 1);
+  CHECK(issues[0].field == "variant");
 }

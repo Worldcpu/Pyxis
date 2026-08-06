@@ -51,6 +51,28 @@ TEST_CASE("PLN: XML 转义用户可控字段", "[pln][unit]") {
   CHECK(xml.find("ZUCK & ZBAA <RETURN>") == std::string::npos);
 }
 
+TEST_CASE("PLN: 西经与 segment_index 哨兵跳过", "[pln][unit]") {
+  // 西经（经度 < 0 → 'W'）格式化——既有用例全为东经。
+  CHECK(px::FormatDms(-73.98, false) == "W73°58'48.00\"");
+
+  // segment_index=-1 的哨兵点（FromBf 空 legs 产物）不导出；
+  // 负经度航路点产生 W 坐标。
+  const px::PlnExportParams params{
+      "ZUCK - KJFK", "IFR",    35000.0, "ZUCK", "KJFK",
+      29.7192,       106.6417, 40.64,   -73.78,
+  };
+  const std::vector<px::FlightPoint> points = {
+      {"GURUN", "DCT", 29.0, -105.0, 0},
+      {"SENTINEL", "DCT", 28.5, 104.2, -1},  // 哨兵：跳过导出
+  };
+
+  const auto xml = px::RenderPlnXml(params, points);
+
+  CHECK(xml.find("SENTINEL") == std::string::npos);
+  CHECK(xml.find("GURUN") != std::string::npos);
+  CHECK(xml.find("W105°0'0.00\"") != std::string::npos);
+}
+
 TEST_CASE("PLN: XML 生成含起降场与航路点", "[pln][unit]") {
   const px::PlnExportParams params{
       "ZUCK - ZBAA", "IFR",    35000.0, "ZUCK",   "ZBAA",
