@@ -21,13 +21,18 @@ void JsonModuleRegistry::Add(std::unique_ptr<JsonModule> module) {
 void JsonModuleRegistry::Compose(
     rapidjson::Writer<rapidjson::StringBuffer>& writer,
     const std::vector<std::string>& names, const JsonContext& ctx) const {
+  std::vector<std::string> emitted;  // 已输出名称——重复 key 会被解析器吞掉。
   for (const auto& name : names) {
+    if (std::find(emitted.begin(), emitted.end(), name) != emitted.end()) {
+      continue;
+    }
     // 按 names 顺序查找同名模块。
     auto it = std::find_if(modules_.begin(), modules_.end(),
                            [&](const auto& m) { return name == m->Name(); });
     if (it == modules_.end()) continue;
 
     if (!(*it)->WriteFields(writer, ctx)) continue;
+    emitted.push_back(name);
   }
 }
 

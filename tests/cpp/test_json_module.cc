@@ -38,7 +38,7 @@ class NullSkipModule : public JsonModule {
   bool WriteFields(rapidjson::Writer<rapidjson::StringBuffer>& writer,
                    const JsonContext& ctx) const override {
     (void)writer;
-    return ctx.route != nullptr;  // ctx.route == nullptr → skip
+    return ctx.flightplan != nullptr;  // ctx.flightplan == nullptr → skip
   }
 };
 
@@ -106,6 +106,28 @@ TEST_CASE("Registry skips when WriteFields returns false") {
   std::string json(buf.GetString());
   REQUIRE(json.find("skip_me") == std::string::npos);
   REQUIRE(json.find("ok") != std::string::npos);
+}
+
+TEST_CASE("Registry duplicate names in request output once") {
+  // names 重复时同一模块只输出一次（重复 key 会被 JSON.parse 静默吞掉
+  // 第一个——显式去重；含不相邻重复 "a","b","a"）。
+  JsonModuleRegistry registry;
+  registry.Add(std::make_unique<MockModule>("a", "first"));
+  registry.Add(std::make_unique<MockModule>("b", "second"));
+
+  rapidjson::StringBuffer buf;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buf);
+
+  writer.StartObject();
+  registry.Compose(writer, {"a", "b", "a"}, JsonContext{});
+  writer.EndObject();
+
+  const std::string json(buf.GetString());
+  REQUIRE(json.find("\"a\":") != std::string::npos);
+  REQUIRE(json.find("\"b\":") != std::string::npos);
+  // a 只出现一次（当前实现只防相邻重复——"a","b","a" 会双写）。
+  const size_t first = json.find("\"a\":");
+  CHECK(json.find("\"a\":", first + 1) == std::string::npos);
 }
 
 TEST_CASE("Registry same-name modules: last wins") {

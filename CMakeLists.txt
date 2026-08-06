@@ -34,6 +34,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(rapidjson)
 
+# bf 子模块的 libs/http_server 与 libs/service 引用 rapidjson::rapidjson
+# 导入目标（命名空间形式）。rapidjson v1.1.0 不定义 CMake target——补
+# 别名并直接携带 include 目录。
+if(NOT TARGET rapidjson::rapidjson)
+  add_library(rapidjson::rapidjson INTERFACE IMPORTED)
+  target_include_directories(rapidjson::rapidjson INTERFACE
+                             ${rapidjson_SOURCE_DIR}/include)
+endif()
+
 # --- Catch2 (tests) ---
 if(PX_BUILD_TESTS)
   FetchContent_Declare(

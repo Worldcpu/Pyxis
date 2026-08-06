@@ -1,12 +1,20 @@
 # tests/cpp/ — C++ test suite (Catch2)
 
 add_executable(px_tests
+  test_airframe.cc
+  test_bf_rpc.cc
+  test_cache_policy.cc
+  test_flightplan_domain.cc
   test_json_module.cc
+  test_plan_json.cc
+  test_pln_export.cc
   test_result.cc
+  test_rpc_dispatch.cc
 )
 
 target_link_libraries(px_tests PRIVATE
   px_core
+  px_flightplan
   px_service
   Catch2::Catch2WithMain
 )
