@@ -22,7 +22,14 @@ target_link_libraries(px_tests PRIVATE
 target_compile_features(px_tests PRIVATE cxx_std_20)
 
 include(Catch)
-catch_discover_tests(px_tests)
+if(WIN32)
+  # Windows 上 catch_discover_tests 的中文测试名经 ctest 传参时编码损坏
+  # （chcp 65001 无效），直接运行测试二进制绕开名字传递；
+  # 代价是 Windows 失去逐用例粒度，换取编码无关的确定性。
+  add_test(NAME px_tests COMMAND px_tests)
+else()
+  catch_discover_tests(px_tests)
+endif()
 
 # Google Benchmark — disabled pending re-enable in Phase 8
 # if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.20)
