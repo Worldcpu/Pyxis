@@ -22,3 +22,7 @@ target_link_libraries(px_service PUBLIC
 )
 
 target_compile_features(px_service PUBLIC cxx_std_20)
+
+# 同 px_flightplan：禁用异常（项目契约 + 消除 gcov 幻影异常边）。
+# rapidjson 1.1.0 默认配置无异常（PARSE_ERROR 走 assert），无需额外宏。
+target_compile_options(px_service PRIVATE -fno-exceptions)
