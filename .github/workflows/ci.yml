@@ -106,7 +106,12 @@ jobs:
       # -- Build ------------------------------------------------------------
       - name: Build
         shell: bash
-        run: cmake --build build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+        run: |
+          # Windows 多配置生成器：不传 --config 只构建默认配置（Debug），
+          # 与 Test 的 -C 不对称会导致 Release 产物缺失（Not Run）
+          build_args=()
+          if [[ -n "${{ matrix.ctest_config }}" ]]; then build_args+=(--config "${{ matrix.ctest_config }}"); fi
+          cmake --build build/${{ matrix.config }} "${build_args[@]}" -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
       # -- Test -------------------------------------------------------------
       - name: Test
