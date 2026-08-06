@@ -11,8 +11,8 @@ namespace px {
 
 namespace {
 
-// SegmentKind → JSON 字符串（决策 2c 枚举语义）。switch 穷举无尾 return：
-// 新增枚举成员由 -Wswitch 兜底，避免静默输出错误 kind。
+// SegmentKind → JSON 字符串（决策 2c 枚举语义）。switch 穷举无 default：
+// 新增枚举成员由 -Wswitch 兜底告警，避免静默输出错误 kind。
 const char* KindName(SegmentKind kind) {
   switch (kind) {
     case SegmentKind::kSid:
@@ -26,6 +26,8 @@ const char* KindName(SegmentKind kind) {
     case SegmentKind::kAlternate:
       return "alternate";
   }
+  // 尾 return 仅满足 -Werror 下的 -Wreturn-type（GCC 无法证明 switch 穷举）。
+  return "unknown";
 }
 
 // AltitudeRule → JSON 字符串（决策 27 三态：kAuto 不塌缩）。
@@ -38,6 +40,7 @@ const char* RuleName(AltitudeRule rule) {
     case AltitudeRule::kChina:
       return "china";
   }
+  return "unknown";
 }
 
 // 航段 JSON 形状（generate 阶段；决策 2c 字段集）。
