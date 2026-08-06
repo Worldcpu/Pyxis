@@ -24,8 +24,10 @@ jobs:
         include:
           - os: windows-latest
             config: windows-debug
+            ctest_config: Debug
           - os: windows-latest
             config: windows-release
+            ctest_config: Release
 
     runs-on: ${{ matrix.os }}
 
@@ -110,9 +112,11 @@ jobs:
       - name: Test
         shell: bash
         run: |
-          # Windows 上 ctest 中文测试名需 UTF-8 代码页（catch_discover_tests 编码问题）
-          if [[ "$RUNNER_OS" == "Windows" ]]; then chcp.com 65001 > /dev/null; fi
-          ctest --test-dir build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure
+          # Windows 为多配置生成器：直跑二进制（tests/cpp/CMakeLists WIN32 分支）
+          # 的 add_test 需 -C 指定配置，否则 ctest 报 Not Run
+          ctest_args=()
+          if [[ -n "${{ matrix.ctest_config }}" ]]; then ctest_args+=(-C "${{ matrix.ctest_config }}"); fi
+          ctest --test-dir build/${{ matrix.config }} "${ctest_args[@]}" -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure
 
   # -- Format check (clang-format-18, 只检查不修改) ---------------------------
   format-check:
