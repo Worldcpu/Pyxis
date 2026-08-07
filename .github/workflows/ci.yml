@@ -121,9 +121,14 @@ jobs:
         run: |
           # Windows 为多配置生成器：直跑二进制（tests/cpp/CMakeLists WIN32 分支）
           # 的 add_test 需 -C 指定配置，否则 ctest 报 Not Run
-          ctest_args=()
-          if [[ -n "${{ matrix.ctest_config }}" ]]; then ctest_args+=(-C "${{ matrix.ctest_config }}"); fi
-          ctest --test-dir build/${{ matrix.config }} "${ctest_args[@]}" -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure
+          if [[ -n "${{ matrix.ctest_config }}" ]]; then
+            # 直跑而非 ctest：ctest 对超时（TIMEOUT）测试不 dump 输出，
+            # px_tests 的 unitbuf 进度日志会被吞掉，挂死点不可见。
+            # timeout 120：挂死时 120s 强制退出（退出码 124）并保留实时日志。
+            timeout 120 ./build/${{ matrix.config }}/tests/cpp/px_tests.exe
+          else
+            ctest --test-dir build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure
+          fi
 
   # -- Format check (clang-format-18, 只检查不修改) ---------------------------
   format-check:
