@@ -17,3 +17,10 @@ target_compile_features(px_core INTERFACE cxx_std_20)
 # （fmt/Catch2 自带 /W4）与 bf 子模块，把第三方代码的警告也升级为错误。
 target_compile_options(px_core INTERFACE
   $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W3 /WX>)
+
+# Windows：uv.h 引入 windows.h 的 min/max 宏，破坏 rapidjson/bf 头中的
+# numeric_limits::max()（fixed_string.h:61/136、document.h:958 C2589）。
+# 回归自 WS 线 17d1cad 修复（force push 覆盖后需随 HTTP 线重带）——
+# 放 INTERFACE 使全部 px 目标（px_server/px_tests/...）统一继承。
+target_compile_definitions(px_core INTERFACE
+  $<$<PLATFORM_ID:Windows>:NOMINMAX>)

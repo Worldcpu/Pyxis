@@ -24,7 +24,6 @@ double DistanceNm(const GeoCoord& a, const GeoCoord& b) noexcept {
 std::vector<AlternateCandidate> FilterAlternates(
     std::span<const AirportEntry> airports, const GeoCoord& arrival,
     const AlternatesParams& params) {
-  const bf::Coordinate arr{arrival.latitude, arrival.longitude};
   std::vector<AlternateCandidate> out;
   out.reserve(airports.size());
   // 排除列表构建为集合（O(A) 预构建，循环内 O(1)——避免每次请求 O(N·A)）。
