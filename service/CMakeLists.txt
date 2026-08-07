@@ -11,6 +11,7 @@ add_library(px_service STATIC
   http_rpc.cc
   plan_handlers.cc
   airframe_json.cc
+  profile_json.cc
 )
 
 target_include_directories(px_service PUBLIC

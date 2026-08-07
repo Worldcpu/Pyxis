@@ -26,6 +26,21 @@ px::RpcResult Call(
   return it->second(params);
 }
 
+// 独立临时目录（每用例唯一，结束清理；airframe/profile 文件 IO 测试）。
+class TempDir {
+ public:
+  TempDir() {
+    dir_ = std::filesystem::temp_directory_path() /
+           ("pyxis-airf-" + std::to_string(std::random_device{}()));
+    std::filesystem::create_directories(dir_);
+  }
+  ~TempDir() { std::filesystem::remove_all(dir_); }
+  std::string Path() const { return dir_.string(); }
+
+ private:
+  std::filesystem::path dir_;
+};
+
 }  // namespace
 
 TEST_CASE("plan.routes: 缺 departure/arrival → 400", "[plan][unit]") {
@@ -243,6 +258,107 @@ TEST_CASE("plan.generate: zfw 低于 DOW → 400（审查修复：物理不可�
   CHECK(r.error_code == 400);
 }
 
+// ---- profile 四端点（决策 55：data_dir/profiles.json） ----
+
+TEST_CASE("profile: upsert → list/get 回读；delete → 404/空", "[plan][unit]") {
+  TempDir tmp;
+  px::PlanContext ctx;
+  ctx.data_dir = tmp.Path();
+  const auto handlers = px::MakePlanHandlers(ctx);
+
+  auto r = Call(handlers, "profile.list", "{}");
+  REQUIRE(r.ok);
+  REQUIRE(r.json == "[]");
+
+  r = Call(handlers, "profile.upsert",
+           R"({"profile":{"name":"默认","k":8,"level":"high",
+                          "min_fl":300,"max_fl":410,
+                          "avoid_waypoints":["TONIN"]}})");
+  REQUIRE(r.ok);
+  {
+    rapidjson::Document doc;
+    doc.Parse(r.json.c_str());
+    CHECK(std::string(doc["name"].GetString()) == "默认");
+    CHECK(doc["k"].GetInt() == 8);
+  }
+
+  r = Call(handlers, "profile.get", R"({"name":"默认"})");
+  REQUIRE(r.ok);
+  {
+    rapidjson::Document doc;
+    doc.Parse(r.json.c_str());
+    CHECK(std::string(doc["level"].GetString()) == "high");
+    CHECK(doc["min_fl"].GetInt() == 300);
+    REQUIRE(doc["avoid_waypoints"].IsArray());
+    CHECK(doc["avoid_waypoints"][0].GetString() == std::string("TONIN"));
+  }
+
+  // upsert 覆盖同 name。
+  r = Call(handlers, "profile.upsert", R"({"profile":{"name":"默认","k":3}})");
+  REQUIRE(r.ok);
+  r = Call(handlers, "profile.list", "{}");
+  REQUIRE(r.ok);
+  {
+    rapidjson::Document doc;
+    doc.Parse(r.json.c_str());
+    REQUIRE(doc.Size() == 1);
+    CHECK(doc[0]["k"].GetInt() == 3);
+  }
+
+  r = Call(handlers, "profile.delete", R"({"name":"默认"})");
+  REQUIRE(r.ok);
+  r = Call(handlers, "profile.delete", R"({"name":"默认"})");
+  CHECK(!r.ok);
+  CHECK(r.error_code == 404);
+  r = Call(handlers, "profile.list", "{}");
+  REQUIRE(r.ok);
+  REQUIRE(r.json == "[]");
+}
+
+TEST_CASE("profile: 校验 400（name/k/level/min-max）与无 data_dir -32000",
+          "[plan][unit]") {
+  {
+    const auto handlers = px::MakePlanHandlers({});  // 无 data_dir
+    const auto r = Call(handlers, "profile.list", "{}");
+    CHECK(!r.ok);
+    CHECK(r.error_code == -32000);
+  }
+  TempDir tmp;
+  px::PlanContext ctx;
+  ctx.data_dir = tmp.Path();
+  const auto handlers = px::MakePlanHandlers(ctx);
+  {
+    const auto r =
+        Call(handlers, "profile.upsert", R"({"profile":{"name":""}})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+  {
+    const auto r =
+        Call(handlers, "profile.upsert", R"({"profile":{"name":"x","k":99}})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+  {
+    const auto r = Call(handlers, "profile.upsert",
+                        R"({"profile":{"name":"x","level":"weird"}})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+  {
+    const auto r =
+        Call(handlers, "profile.upsert",
+             R"({"profile":{"name":"x","min_fl":410,"max_fl":250}})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+  {
+    const auto r = Call(handlers, "profile.get", R"({})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+}
+
 // ---- plan.analyze（决策 54：航路合法性检查；bf ParseRoute 语义解析） ----
 
 TEST_CASE("plan.analyze: 缺 route_string / 非字符串 → 400", "[plan][unit]") {
@@ -336,21 +452,6 @@ TEST_CASE("plan.export: 合法请求 → 200 + {format, filename, content}（XML
 }
 
 // ---- 7c：airframe 四端点（决策 21：data_dir 文件 IO，临时目录） ----
-
-// 独立临时目录（每用例唯一，结束清理）。
-class TempDir {
- public:
-  TempDir() {
-    dir_ = std::filesystem::temp_directory_path() /
-           ("pyxis-airf-" + std::to_string(std::random_device{}()));
-    std::filesystem::create_directories(dir_);
-  }
-  ~TempDir() { std::filesystem::remove_all(dir_); }
-  std::string Path() const { return dir_.string(); }
-
- private:
-  std::filesystem::path dir_;
-};
 
 TEST_CASE("airframe: upsert → list/get 回读；delete → 空", "[plan][unit]") {
   TempDir tmp;

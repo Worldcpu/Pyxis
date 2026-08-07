@@ -24,6 +24,7 @@
 #include "px/service/bf_rpc.h"
 #include "px/service/plan_json.h"
 #include "px/service/pln_export.h"
+#include "px/service/profile_json.h"
 
 namespace px {
 
@@ -667,6 +668,133 @@ RpcResult HandleAirframeDelete(const rapidjson::Value& params,
   return {true, buffer.GetString(), 0, ""};
 }
 
+// ---- profile 四端点（决策 55：data_dir/profiles.json 持久层，airframe
+// 同款模式——Suggest Route 偏好） ----
+
+std::string ProfilesPath(const PlanContext& ctx) {
+  return ctx.data_dir + "/profiles.json";
+}
+
+std::string RenderProfileJson(const Profile& profile) {
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  WriteProfileJson(writer, profile);
+  return buffer.GetString();
+}
+
+// 校验（决策 55：name 非空 ≤32；k 1..15；min≤max；level low/high）。
+const char* ValidateProfile(const Profile& profile) {
+  if (profile.name.empty() || profile.name.size() > 32) {
+    return "name 须为非空且 ≤32 字符";
+  }
+  if (profile.k.has_value() && (*profile.k < 1 || *profile.k > 15)) {
+    return "k 须在 1..15";
+  }
+  if (profile.level.has_value() && *profile.level != "low" &&
+      *profile.level != "high") {
+    return "level 仅支持 low/high";
+  }
+  if (profile.min_fl.has_value() && profile.max_fl.has_value() &&
+      *profile.min_fl > *profile.max_fl) {
+    return "min_fl 不得超过 max_fl";
+  }
+  return nullptr;
+}
+
+RpcResult HandleProfileList(const rapidjson::Value&, const PlanContext& ctx) {
+  if (ctx.data_dir.empty()) return RpcError(-32000, "data_dir 未配置");
+  std::lock_guard<std::mutex> lock(*ctx.file_mutex);
+  const auto profiles = LoadProfiles(ProfilesPath(ctx));
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  writer.StartArray();
+  for (const auto& profile : profiles) {
+    WriteProfileJson(writer, profile);
+  }
+  writer.EndArray();
+  return {true, buffer.GetString(), 0, ""};
+}
+
+RpcResult HandleProfileGet(const rapidjson::Value& params,
+                           const PlanContext& ctx) {
+  if (ctx.data_dir.empty()) return RpcError(-32000, "data_dir 未配置");
+  if (!params.HasMember("name") || !params["name"].IsString()) {
+    return RpcError(400, "name 必填");
+  }
+  std::lock_guard<std::mutex> lock(*ctx.file_mutex);
+  for (const auto& profile : LoadProfiles(ProfilesPath(ctx))) {
+    if (profile.name == params["name"].GetString()) {
+      return {true, RenderProfileJson(profile), 0, ""};
+    }
+  }
+  return RpcError(404, "profile 不存在");
+}
+
+RpcResult HandleProfileUpsert(const rapidjson::Value& params,
+                              const PlanContext& ctx) {
+  if (ctx.data_dir.empty()) return RpcError(-32000, "data_dir 未配置");
+  if (!params.HasMember("profile") || !params["profile"].IsObject()) {
+    return RpcError(400, "profile 必填");
+  }
+  Profile incoming;
+  if (!ParseProfile(params["profile"], &incoming)) {
+    return RpcError(400, "profile 形状非法");
+  }
+  if (const char* issue = ValidateProfile(incoming)) {
+    return RpcError(400, "profile 校验失败: " + std::string(issue));
+  }
+  std::lock_guard<std::mutex> lock(*ctx.file_mutex);
+  auto profiles = LoadProfiles(ProfilesPath(ctx));
+  bool replaced = false;
+  for (auto& profile : profiles) {
+    if (profile.name == incoming.name) {
+      profile = incoming;
+      replaced = true;
+      break;
+    }
+  }
+  if (!replaced) profiles.push_back(incoming);
+  auto stored = StoreProfiles(ProfilesPath(ctx), profiles);
+  if (!stored.has_value()) {
+    return RpcError(-32000, stored.error().message);
+  }
+  return {true, RenderProfileJson(incoming), 0, ""};
+}
+
+RpcResult HandleProfileDelete(const rapidjson::Value& params,
+                              const PlanContext& ctx) {
+  if (ctx.data_dir.empty()) return RpcError(-32000, "data_dir 未配置");
+  if (!params.HasMember("name") || !params["name"].IsString()) {
+    return RpcError(400, "name 必填");
+  }
+  std::lock_guard<std::mutex> lock(*ctx.file_mutex);
+  auto profiles = LoadProfiles(ProfilesPath(ctx));
+  bool removed = false;
+  profiles.erase(
+      std::remove_if(profiles.begin(), profiles.end(),
+                     [&](const Profile& profile) {
+                       if (profile.name == params["name"].GetString()) {
+                         removed = true;
+                         return true;
+                       }
+                       return false;
+                     }),
+      profiles.end());
+  auto stored = StoreProfiles(ProfilesPath(ctx), profiles);
+  if (!stored.has_value()) {
+    return RpcError(-32000, stored.error().message);
+  }
+  if (!removed) return RpcError(404, "profile 不存在");
+  // Writer 纪律（CLAUDE.md：禁止手写 JSON 字面量）。
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  writer.StartObject();
+  writer.Key("ok");
+  writer.Bool(true);
+  writer.EndObject();
+  return {true, buffer.GetString(), 0, ""};
+}
+
 // list_cycles（决策 18：px 包装；Phase 9 单周期）。
 RpcResult HandleListCycles(const rapidjson::Value&, const PlanContext& ctx) {
   rapidjson::StringBuffer buffer;
@@ -731,6 +859,19 @@ std::unordered_map<std::string, RpcHandler> MakePlanHandlers(PlanContext ctx) {
   });
   handlers.emplace("airframe.delete", [ctx](const rapidjson::Value& params) {
     return HandleAirframeDelete(params, ctx);
+  });
+  // profile 四端点（决策 55）。
+  handlers.emplace("profile.list", [ctx](const rapidjson::Value& params) {
+    return HandleProfileList(params, ctx);
+  });
+  handlers.emplace("profile.get", [ctx](const rapidjson::Value& params) {
+    return HandleProfileGet(params, ctx);
+  });
+  handlers.emplace("profile.upsert", [ctx](const rapidjson::Value& params) {
+    return HandleProfileUpsert(params, ctx);
+  });
+  handlers.emplace("profile.delete", [ctx](const rapidjson::Value& params) {
+    return HandleProfileDelete(params, ctx);
   });
   return handlers;
 }
