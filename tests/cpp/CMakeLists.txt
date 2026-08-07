@@ -1,6 +1,7 @@
 # tests/cpp/ — C++ test suite (Catch2)
 
 add_executable(px_tests
+  main.cc  # 接管 Catch2 main：unitbuf 即时冲刷（CI 管道下挂死可定位）
   test_airframe.cc
   test_airframe_json.cc
   test_airport_index.cc
@@ -12,6 +13,7 @@ add_executable(px_tests
   test_plan_json.cc
   test_plan_handlers.cc
   test_pln_export.cc
+  test_profile_json.cc
   test_result.cc
   test_rpc_dispatch.cc
   test_server_smoke.cc
@@ -23,7 +25,7 @@ target_link_libraries(px_tests PRIVATE
   px_navdata
   px_service
   bf_http_server  # 集成冒烟：真实 HTTP 传输（S4b，决策 50）
-  Catch2::Catch2WithMain
+  Catch2::Catch2
 )
 
 target_compile_features(px_tests PRIVATE cxx_std_20)

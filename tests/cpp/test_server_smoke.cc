@@ -143,15 +143,35 @@ TEST_CASE("server: POST /rpc 集成冒烟（真实 socket 全链路）",
   uv_tcp_connect(&client.connect_req, &client.socket,
                  reinterpret_cast<const sockaddr*>(&addr), OnConnect);
 
+  // 看门狗：EOF 若 10s 未达（uv_stop 永不触发，uv_run 死循环——Windows
+  // 上服务端 close 语义与 Linux 不同，曾致 CI 300s 超时），强制退出并
+  // 留下可诊断标志；正常路径不会触发。
+  uv_timer_t watchdog{};
+  bool watchdog_fired = false;
+  REQUIRE(uv_timer_init(&loop, &watchdog) == 0);
+  watchdog.data = &watchdog_fired;
+  uv_timer_start(
+      &watchdog,
+      [](uv_timer_t* t) {
+        *static_cast<bool*>(t->data) = true;
+        uv_stop(t->loop);
+      },
+      10'000, 0);
+
   uv_run(&loop, UV_RUN_DEFAULT);
+  uv_timer_stop(&watchdog);
   server.Close();  // 与 uv_run 同线程（loop 线程）——bf 契约
+  uv_close(reinterpret_cast<uv_handle_t*>(&watchdog), nullptr);
   // EOF 分支的 uv_stop 使 uv_run 在 close 回调（uv__finish_close）执行前
   // 返回——此时所有 uv_close 排队的 handle（客户端 socket + 服务器连接
-  // tcp/timer + listener）仍计入 active_handles，直接 uv_loop_close 会
-  // 返回 UV_EBUSY 并泄漏 loop 内部结构（LSan 704B）。补跑一轮让
-  // uv__run_closing_handles finalize 全部 handle，再关闭 loop。
+  // tcp/timer + listener + 看门狗）仍计入 active_handles，直接
+  // uv_loop_close 会返回 UV_EBUSY 并泄漏 loop 内部结构（LSan 704B）。
+  // 补跑一轮让 uv__run_closing_handles finalize 全部 handle，再关闭 loop。
   uv_run(&loop, UV_RUN_NOWAIT);
   REQUIRE(uv_loop_close(&loop) == 0);
+
+  // 断言全在主线程（回调只记录状态）。
+  REQUIRE_FALSE(watchdog_fired);
 
   // 断言全在主线程（回调只记录状态）。
   REQUIRE(client.error.empty());
