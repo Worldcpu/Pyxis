@@ -180,3 +180,17 @@ Tauri v2 Linux 系统依赖（首次需一次性安装）：
 ```bash
 sudo apt install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev patchelf
 ```
+
+## Agent skills
+
+### Issue tracker
+
+问题与规格以 GitHub issue 形式跟踪，使用 `gh` CLI 操作。参见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+五个规范 triage 角色对应默认标签（`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`）。参见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单上下文布局：领域文档为 `doc/<模块>/` 下的 design.md / glossary.md / adr/。参见 `docs/agents/domain.md`。
