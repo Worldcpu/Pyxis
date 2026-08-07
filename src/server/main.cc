@@ -33,8 +33,10 @@ using bf::http_server::WorkResult;
 struct Args {
   int port = 19100;
   std::string data_dir;     // airframe 档案目录
-  std::string navdata_dir;  // X-Plane 12 Custom Data（决策 47：可缺失）
+  std::string navdata_dir;  // 导航数据目录（决策 47：可缺失）
   std::string cache_dir;    // bfdb 缓存目录（决策 49）
+  // bf loader 名（默认 xplane12 兼容既有；Fenix 用户传 "fenix"）。
+  std::string loader = "xplane12";
 };
 
 // 简单参数解析：--key value 或 --key=value。port 用 strtol（禁用异常）。
@@ -61,6 +63,8 @@ bool ParseArgs(int argc, char** argv, Args* args) {
       args->navdata_dir = value;
     } else if (key == "--cache-dir") {
       args->cache_dir = value;
+    } else if (key == "--loader") {
+      args->loader = value;
     } else {
       return false;
     }
@@ -191,7 +195,7 @@ int main(int argc, char** argv) {
 
   // 决策 47：navdata 缺失服务照起（db 空 → plan/lookup 查询 -32000）。
   if (!args.navdata_dir.empty()) {
-    auto opened = bf::NavDatabase::Open(args.navdata_dir, "xplane12");
+    auto opened = bf::NavDatabase::Open(args.navdata_dir, args.loader);
     if (opened.has_value()) {
       // 决策 49：同步 WriteUnified 落盘 bfdb（首启秒级）→ px 机场索引。
       // WriteUnified 返回值是 CIFP 写入机场数（非 cycle——审查修复）；
