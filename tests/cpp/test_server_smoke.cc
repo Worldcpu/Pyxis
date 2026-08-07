@@ -57,7 +57,7 @@ struct Client {
   char read_buf[16384];
 };
 
-void OnAlloc(uv_handle_t* handle, size_t suggested, uv_buf_t* buf) {
+void OnAlloc(uv_handle_t* handle, size_t /*suggested*/, uv_buf_t* buf) {
   auto* client = static_cast<Client*>(handle->data);
   *buf = uv_buf_init(client->read_buf, sizeof(client->read_buf));
 }
