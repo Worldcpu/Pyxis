@@ -219,11 +219,13 @@ int main(int argc, char** argv) {
                          index.error().message.c_str());
           }
         }
-        ctx.cycle = cycle;
       } else {
         std::fprintf(stderr, "警告: bfdb 构建失败（%s）\n",
                      written.error().message.c_str());
       }
+      // cycle 反映已加载的导航数据（审查修复：此前随 written 成功才赋值——
+      // 缓存写盘失败时 list_cycles 空，尽管数据库已加载）。
+      ctx.cycle = cycle;
       db.emplace(std::move(opened.value()));
       ctx.db = &*db;
     } else {

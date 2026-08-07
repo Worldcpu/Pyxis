@@ -42,9 +42,11 @@ struct AlternatesParams {
 };
 
 // 备降候选条目（决策 12/48：无 name——bf 无机场名称数据）。
+// coord 供地图标记（审查修复：此前前端从 route 字符串取坐标——永远为空）。
 struct AlternateCandidate {
   std::string icao;
   double distance_nm = 0.0;
+  GeoCoord coord{0.0, 0.0};
   std::string route = "DCT";  // 决策 12：默认 DCT 大圆
 };
 

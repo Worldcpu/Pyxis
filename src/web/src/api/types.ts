@@ -1,27 +1,21 @@
 // px_server JSON-RPC 端点类型（对齐 plan_handlers.cc / plan_json.cc 契约）。
 // 宽松字段（fuel 等 Phase 10 占位）标 optional。
+// 契约漂移修复（code review）：候选形状顶层 points / via+segment_index /
+// total_distance_nm；checks.status 字符串；alternates 带 lat/lon。
 
-/** 航路点（route.points 元素；决策 41：Phase 9 全部同色）。 */
+/** 航路点（服务器写 ident/via/lat/lon/segment_index；-1 = 机场点）。 */
 export interface RoutePoint {
   ident: string;
+  /** 所属航路（via）。 */
+  via?: string;
   lat: number;
   lon: number;
-  index: number;
-  /** 所属航路（via）。 */
-  from?: string;
-  /** 点类型（Phase 9 不按类型着色）。 */
-  kind?: string;
-  dep_runway?: string;
-  arr_runway?: string;
-  dep_connection?: string;
-  arr_connection?: string;
-  dep_nm?: number;
-  arr_nm?: number;
-  experimental?: boolean;
+  segment_index: number;
 }
 
 export type CheckStatus = 'ok' | 'warning' | 'unflyable';
 
+/** plan.generate 响应。 */
 export interface FlightPlan {
   route: { points: RoutePoint[] };
   altitude: {
@@ -38,14 +32,15 @@ export interface FlightPlan {
   seed?: number;
   mora_checked?: boolean;
   checks?: { status: CheckStatus; warnings: string[] };
+  /** weights 仅 dow/zfw/tow/lw 现网输出（其余 Phase 10）——全可选。 */
   weights?: {
-    dow_kg: number;
-    zfw_kg: number;
-    mzfw_kg: number;
-    mtow_kg: number;
-    mlw_kg: number;
-    lw_kg?: number;
+    dow_kg?: number;
+    zfw_kg?: number;
     tow_kg?: number;
+    lw_kg?: number;
+    mzfw_kg?: number;
+    mtow_kg?: number;
+    mlw_kg?: number;
   };
   /** 燃油（Phase 10 填充）。 */
   fuel?: unknown;
@@ -53,17 +48,29 @@ export interface FlightPlan {
   distance_nm?: number;
 }
 
-/** plan.routes 候选（RenderPlanCandidatesJson 输出 = FlightPlan + index）。 */
-export interface RouteCandidate extends FlightPlan {
+/** plan.routes 候选（RenderPlanCandidatesJson：points 顶层，无 route 对象）。 */
+export interface RouteCandidate {
   index: number;
-  route_string?: string;
+  route_string: string;
+  total_distance_nm?: number;
+  distances?: { dep_nm?: number; enroute_nm?: number; arr_nm?: number };
+  sid?: string;
+  star?: string;
+  dep_runway?: string;
+  arr_runway?: string;
+  dep_connection?: string;
+  arr_connection?: string;
+  seed?: number;
+  points: RoutePoint[];
 }
 
-/** plan.alternates 条目（决策 12 修订：{icao, distance_nm, route}）。 */
+/** plan.alternates 条目（决策 12 修订：{icao, distance_nm, lat, lon}）。 */
 export interface Alternate {
   icao: string;
   distance_nm: number;
-  route?: unknown;
+  lat: number;
+  lon: number;
+  route?: string;
 }
 
 export type PerfSource = 'lnm' | 'custom' | 'openap' | 'fcom';

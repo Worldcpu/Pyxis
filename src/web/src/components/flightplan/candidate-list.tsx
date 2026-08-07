@@ -68,14 +68,9 @@ export function CandidateList({
                 )}
               </div>
               <div className="mt-0.5 flex gap-3 font-mono text-xs text-muted-foreground">
-                {c.distance_nm !== undefined && (
+                {c.total_distance_nm !== undefined && (
                   <span>
-                    {t('candidates.distance')} {Math.round(c.distance_nm)}NM
-                  </span>
-                )}
-                {c.altitude?.fl !== undefined && (
-                  <span>
-                    {t('candidates.fl')} FL{c.altitude.fl}
+                    {t('candidates.distance')} {Math.round(c.total_distance_nm)}NM
                   </span>
                 )}
               </div>

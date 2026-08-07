@@ -76,6 +76,11 @@ std::string RenderAlternatesJson(
     writer.String(c.icao.c_str());
     writer.Key("distance_nm");
     writer.Double(c.distance_nm);
+    // 坐标（审查修复：前端备降图层从此取数，此前 route 字符串无法定位）。
+    writer.Key("lat");
+    writer.Double(c.coord.latitude);
+    writer.Key("lon");
+    writer.Double(c.coord.longitude);
     writer.Key("route");
     writer.String(c.route.c_str());
     writer.EndObject();
@@ -274,7 +279,13 @@ RpcResult HandleGenerate(const rapidjson::Value& params,
   PayloadResult payload;
   if (has_zfw) {
     if (!params["zfw_kg"].IsNumber()) return RpcError(400, "zfw_kg 必须为数值");
-    payload = ComputePayloadFromZfw(params["zfw_kg"].GetDouble());
+    // 值校验（审查修复：此前负数/低于 DOW 的物理不可能值静默通过——
+    // ZFW = DOW + 业载，必 ≥ DOW）。
+    const double zfw = params["zfw_kg"].GetDouble();
+    if (zfw < 0.0 || zfw < airframe.dow_kg) {
+      return RpcError(400, "zfw_kg 必须 ≥ 0 且 ≥ DOW（零油重 = DOW + 业载）");
+    }
+    payload = ComputePayloadFromZfw(zfw);
   } else if (has_pax) {
     int pax = 0;
     double cargo = 0.0;
@@ -350,10 +361,14 @@ RpcResult HandleGenerate(const rapidjson::Value& params,
       !OptString(params, "alternate", &alternate)) {
     return RpcError(400, "callsign/etd/alternate 必须为字符串");
   }
+  // seed 参数名统一 random_seed（与 plan.routes 一致——审查修复：此前
+  // 前端发 random_seed 被静默忽略，决策 7 seed 回传/复现契约断链）。
   uint32_t seed = 0;
-  if (params.HasMember("seed")) {
-    if (!params["seed"].IsUint()) return RpcError(400, "seed 必须为无符号整数");
-    seed = params["seed"].GetUint();
+  if (params.HasMember("random_seed")) {
+    if (!params["random_seed"].IsUint()) {
+      return RpcError(400, "random_seed 必须为无符号整数");
+    }
+    seed = params["random_seed"].GetUint();
   }
 
   if (ctx.db == nullptr) return NoDatabase();
@@ -445,14 +460,28 @@ RpcResult HandleExport(const rapidjson::Value& params, const PlanContext& ctx) {
         !point["lon"].IsNumber()) {
       return RpcError(400, "flightplan.route.points 元素须含 ident/lat/lon");
     }
+    // ident 字符集（审查修复：服务端文件名拼接来源——Phase 10 Tauri
+    // 写盘前必须先收口，防路径穿越；[A-Z0-9] 1-8 位覆盖机场/航路点）。
+    const std::string_view ident = point["ident"].GetString();
+    if (ident.empty() || ident.size() > 8) {
+      return RpcError(400, "ident 长度须为 1-8 字符");
+    }
+    for (const char ch : ident) {
+      if (!std::isalnum(static_cast<unsigned char>(ch))) {
+        return RpcError(400, "ident 仅允许字母数字");
+      }
+    }
   }
   const auto& first = points[0];
   const auto& last = points[points.Size() - 1];
+  // 巡航高度必填（审查修复：此前缺失默认 0 → .PLN 地面高度，MSFS 按
+  // 地面加载——与其余字段的严格校验口径不一致）。
   int cruise_fl = 0;
-  if (fp.HasMember("altitude") && fp["altitude"].IsObject() &&
-      fp["altitude"].HasMember("fl") && fp["altitude"]["fl"].IsInt()) {
-    cruise_fl = fp["altitude"]["fl"].GetInt();
+  if (!fp.HasMember("altitude") || !fp["altitude"].IsObject() ||
+      !fp["altitude"].HasMember("fl") || !fp["altitude"]["fl"].IsInt()) {
+    return RpcError(400, "flightplan.altitude.fl 必填（整数）");
   }
+  cruise_fl = fp["altitude"]["fl"].GetInt();
   PlnExportParams export_params;
   export_params.title = "Pyxis Flight Plan";
   export_params.fp_type = "IFR";

@@ -22,14 +22,15 @@ vi.mock('react-leaflet', () => ({
   CircleMarker: () => null,
   Tooltip: () => null,
   Popup: () => null,
+  useMap: () => ({ fitBounds: vi.fn() }),
 }));
 
 const VALID_FLIGHTPLAN = {
   route: {
     points: [
-      { ident: 'ZUCK', lat: 29.7192, lon: 106.6417, index: 0 },
-      { ident: 'TONIN', lat: 28.5, lon: 104.2, index: 1 },
-      { ident: 'ZBAA', lat: 40.0801, lon: 116.5846, index: 2 },
+      { ident: 'ZUCK', lat: 29.7192, lon: 106.6417, segment_index: -1 },
+      { ident: 'TONIN', lat: 28.5, lon: 104.2, via: 'W80', segment_index: 0 },
+      { ident: 'ZBAA', lat: 40.0801, lon: 116.5846, segment_index: -1 },
     ],
   },
   altitude: { fl: 350, meters: 10668, manual: false, rationale: '' },
@@ -88,13 +89,7 @@ function setupFetch() {
           return jsonRpc({ cycles: [2601] }, body.id);
         case 'plan.alternates':
           return jsonRpc(
-            [
-              {
-                icao: 'ZLXY',
-                distance_nm: 180,
-                route: { points: [{ lat: 34.4471, lon: 108.7516 }] },
-              },
-            ],
+            [{ icao: 'ZLXY', distance_nm: 180, lat: 34.4471, lon: 108.7516 }],
             body.id,
           );
         case 'plan.routes':
@@ -103,9 +98,9 @@ function setupFetch() {
               {
                 index: 0,
                 route_string: 'ZUCK TONIN W80 MAKET ZBAA',
-                route: VALID_FLIGHTPLAN.route,
-                altitude: VALID_FLIGHTPLAN.altitude,
-                distance_nm: 580,
+                total_distance_nm: 580,
+                // 真实契约：points 顶层（RenderPlanCandidatesJson）。
+                points: VALID_FLIGHTPLAN.route.points,
               },
             ],
             body.id,

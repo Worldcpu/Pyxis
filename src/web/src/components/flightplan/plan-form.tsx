@@ -81,7 +81,6 @@ export interface PlanFormProps {
   onChange: (next: PlanFormState) => void;
   airframes: Airframe[];
   alternates: Alternate[];
-  onRefreshAlternates: () => void;
   onGenerateCandidates: () => void;
   loading: boolean;
   onImportSimBrief: (html: string) => void;

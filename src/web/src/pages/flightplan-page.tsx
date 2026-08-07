@@ -217,8 +217,13 @@ export function FlightPlanPage() {
     }));
   };
 
-  const stale =
-    stage !== 'form' && candidatesFingerprint(form) !== candidateFingerprint;
+  // 过期检测缓存（每按键重算 JSON.stringify——审查修复）。
+  const stale = useMemo(
+    () =>
+      stage !== 'form' &&
+      candidatesFingerprint(form) !== candidateFingerprint,
+    [stage, form, candidateFingerprint],
+  );
 
   return (
     <div className="flex h-full min-h-0">
@@ -269,7 +274,6 @@ export function FlightPlanPage() {
               onChange={setForm}
               airframes={airframes}
               alternates={alternates}
-              onRefreshAlternates={() => setAlternates([])}
               onGenerateCandidates={onGenerateCandidates}
               loading={loading === 'routes'}
               onImportSimBrief={onImportSimBrief}

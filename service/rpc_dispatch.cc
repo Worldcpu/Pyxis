@@ -6,6 +6,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
+#include <cstring>
 #include <optional>
 
 namespace px {
@@ -82,6 +83,15 @@ std::optional<RpcResult> DispatchOne(
     const std::unordered_map<std::string, RpcHandler>& handlers) {
   const bool has_id = doc.HasMember("id");
   const auto* id = has_id ? &doc["id"] : nullptr;
+  // JSON-RPC §2.0 版本校验（审查修复：jsonrpc 字段存在但非 "2.0" →
+  // 无效请求，决策 18 结构无效语义；缺失时宽容向后兼容）。
+  if (doc.HasMember("jsonrpc") &&
+      (!doc["jsonrpc"].IsString() ||
+       std::strcmp(doc["jsonrpc"].GetString(), "2.0") != 0)) {
+    return RpcResult{false,
+                     BuildErrorImpl(kInvalidRequest, "invalid request", id),
+                     kInvalidRequest, ""};
+  }
   const auto* method = doc.HasMember("method") && doc["method"].IsString()
                            ? &doc["method"]
                            : nullptr;
@@ -159,6 +169,9 @@ RpcResult DispatchRpc(
       }
     }
     writer.EndArray();
+    if (buffer.GetSize() == 2) {  // "[]"——全通知 batch（§2.2 无响应）。
+      return {true, "", 0, ""};
+    }
     return {true, buffer.GetString(), 0, ""};
   }
 

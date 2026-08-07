@@ -120,8 +120,8 @@ TEST_CASE("plan JSON: 完整计划渲染（generate 形状）", "[plan][unit]") 
   CHECK(doc["experimental"].GetBool() == true);
 
   REQUIRE(doc.HasMember("checks"));
-  CHECK(doc["checks"]["status"].GetInt() ==
-        static_cast<int>(px::CheckStatus::kWarning));
+  // 审查修复：status 字符串化（'ok'/'warning'/'unflyable'）。
+  CHECK(std::string(doc["checks"]["status"].GetString()) == "warning");
   REQUIRE(doc["checks"]["warnings"].Size() == 1);
 
   // 决策 14：generate 响应含航路（route_string + segments + 点序列）。

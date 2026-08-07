@@ -249,6 +249,29 @@ TEST_CASE("RPC: method 非字符串与响应边界", "[rpc][unit]") {
   }
 }
 
+TEST_CASE("RPC: jsonrpc 字段非 2.0 → -32600（审查修复：版本校验）",
+          "[rpc][unit]") {
+  const auto resp = px::DispatchRpc(
+      R"({"jsonrpc":"1.0","method":"lookup_airports","params":{},"id":1})",
+      MakeHandlers());
+  REQUIRE(!resp.ok);
+  CHECK(resp.error_code == -32600);
+  // 缺失版本字段：宽容向后兼容（旧客户端）。
+  const auto missing = px::DispatchRpc(
+      R"({"method":"lookup_airports","params":{},"id":1})", MakeHandlers());
+  REQUIRE(missing.ok);
+}
+
+TEST_CASE("RPC: 全通知 batch → 空 body（§2.2 无响应，审查修复）",
+          "[rpc][unit]") {
+  const auto resp = px::DispatchRpc(
+      R"([{"method":"lookup_airports","params":{}},
+          {"method":"no_such_method","params":{}}])",
+      MakeHandlers());
+  REQUIRE(resp.ok);
+  CHECK(resp.json.empty());  // 无响应体（HTTP 层不发）。
+}
+
 TEST_CASE("RPC: params 非对象提前拒绝（-32600，审查修复）", "[rpc][unit]") {
   const auto handlers = MakeHandlers();
   {
@@ -260,21 +283,21 @@ TEST_CASE("RPC: params 非对象提前拒绝（-32600，审查修复）", "[rpc]
     CHECK(resp.json.find("\"id\":1") != std::string::npos);
   }
   {
-    const auto resp =
-        px::DispatchRpc(R"({"method":"lookup_airports","params":42,"id":2})", handlers);
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_airports","params":42,"id":2})", handlers);
     CHECK(!resp.ok);
     CHECK(resp.error_code == -32600);
   }
   {
-    const auto resp =
-        px::DispatchRpc(R"({"method":"lookup_airports","params":null,"id":3})", handlers);
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_airports","params":null,"id":3})", handlers);
     CHECK(!resp.ok);
     CHECK(resp.error_code == -32600);
   }
   {
     // 通知（无 id）+ 非法 params：静默。
-    const auto resp =
-        px::DispatchRpc(R"({"method":"lookup_airports","params":null})", handlers);
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_airports","params":null})", handlers);
     CHECK(resp.ok);
     CHECK(resp.json.empty());
   }

@@ -34,6 +34,11 @@ std::vector<AlternateCandidate> FilterAlternates(
     if (e.icao.size() != 4) {
       continue;
     }
+    // 距离粗筛（1° 纬度 ≈ 60NM）——避免每个机场都算 haversine（审查修复）。
+    if (std::abs(e.coord.latitude - arrival.latitude) * 60.0 >
+        params.max_distance_nm) {
+      continue;
+    }
     // 到达场自身（距离 0 的假候选）与排除列表。
     if (e.icao == params.exclude_icao || avoid.count(e.icao) != 0) {
       continue;
@@ -43,7 +48,7 @@ std::vector<AlternateCandidate> FilterAlternates(
     if (distance_nm > params.max_distance_nm) {
       continue;
     }
-    out.push_back(AlternateCandidate{e.icao, distance_nm, "DCT"});
+    out.push_back(AlternateCandidate{e.icao, distance_nm, e.coord, "DCT"});
   }
   // 距离升序 + 截断 limit 条（决策 12）。
   std::sort(out.begin(), out.end(),

@@ -43,6 +43,19 @@ const char* RuleName(AltitudeRule rule) {
   return "unknown";
 }
 
+// 检查状态字符串化（审查修复：此前输出 int，前端字符串比较永不命中）。
+const char* CheckStatusName(CheckStatus status) {
+  switch (status) {
+    case CheckStatus::kOk:
+      return "ok";
+    case CheckStatus::kWarning:
+      return "warning";
+    case CheckStatus::kUnflyable:
+      return "unflyable";
+  }
+  return "unknown";
+}
+
 // 航段 JSON 形状（generate 阶段；决策 2c 字段集）。
 void WriteSegment(rapidjson::Writer<rapidjson::StringBuffer>& writer,
                   const FlightSegment& segment) {
@@ -242,7 +255,7 @@ std::string RenderPlanJson(const FlightPlan& plan) {
   writer.Key("checks");
   writer.StartObject();
   writer.Key("status");
-  writer.Int(static_cast<int>(plan.checks.status));
+  writer.String(CheckStatusName(plan.checks.status));
   writer.Key("warnings");
   writer.StartArray();
   for (const auto& warning : plan.checks.warnings) {

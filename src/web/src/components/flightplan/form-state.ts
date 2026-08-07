@@ -53,6 +53,8 @@ export const INITIAL_FORM: PlanFormState = {
 /**
  * 候选参数指纹：影响候选结果的字段序列化。
  * 变化后旧候选视为过期（ui-spec §6 警告条橙黄）。
+ * 不含 routeString——它是候选点选的产物而非 plan.routes 参数，
+ * 纳入会导致正常点选自触发"候选过期"（审查修复）。
  */
 export function candidatesFingerprint(f: PlanFormState): string {
   return JSON.stringify({
@@ -63,6 +65,5 @@ export function candidatesFingerprint(f: PlanFormState): string {
     min: f.minFl,
     max: f.maxFl,
     rule: f.altitudeRule,
-    r: f.routeString.trim(),
   });
 }

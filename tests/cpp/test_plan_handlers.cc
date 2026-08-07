@@ -231,6 +231,18 @@ TEST_CASE("plan.generate: min_fl 类型错/越界 → 400（审查修复）",
   }
 }
 
+TEST_CASE("plan.generate: zfw 低于 DOW → 400（审查修复：物理不可能值）",
+          "[plan][unit]") {
+  const auto handlers = px::MakePlanHandlers({});
+  // kValidAirframe dow_kg = 41000——zfw 40000 < DOW。
+  const auto r = Call(handlers, "plan.generate",
+                      R"({"route_string":"ZUCK TONIN ZBAA",
+                          "airframe":)" +
+                          std::string(kValidAirframe) + R"(,"zfw_kg":40000})");
+  CHECK(!r.ok);
+  CHECK(r.error_code == 400);
+}
+
 TEST_CASE("plan.generate: 校验通过 + navdata 缺失 → -32000", "[plan][unit]") {
   const auto handlers = px::MakePlanHandlers({});
   const auto r = Call(handlers, "plan.generate",

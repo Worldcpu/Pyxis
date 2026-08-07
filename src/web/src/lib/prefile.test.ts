@@ -59,6 +59,18 @@ describe('IVAO URL', () => {
     expect(json.cruisingSpeed).toBe(437);
     expect(json.cruisingLevel).toBe('F350');
   });
+
+  it('非 Latin-1 呼号（中文）→ UTF-8 安全 base64，不抛异常（审查修复）', () => {
+    // btoa 对 >U+00FF 字符抛 InvalidCharacterError——此前中文呼号白屏。
+    const url = buildIvaoUrl({ ...INPUT, callsign: '测试航班' });
+    const q = new URLSearchParams(url.split('?')[1]);
+    const json = JSON.parse(
+      new TextDecoder().decode(
+        Uint8Array.from(atob(q.get('flightPlan') ?? ''), (c) => c.charCodeAt(0)),
+      ),
+    );
+    expect(json.callsign).toBe('测试航班');
+  });
 });
 
 describe('PilotEdge URL', () => {

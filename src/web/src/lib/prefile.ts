@@ -46,6 +46,11 @@ export function buildVatsimUrl(input: PrefileInput): string {
   return `https://www.vatsim.net/flightplan?${q.toString()}`;
 }
 
+/** UTF-8 安全 base64（btoa 遇非 Latin-1 抛异常——审查修复）。 */
+function utf8ToBase64(s: string): string {
+  return btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+}
+
 /** IVAO prefile URL（base64 JSON）。 */
 export function buildIvaoUrl(input: PrefileInput): string {
   const payload = {
@@ -58,7 +63,7 @@ export function buildIvaoUrl(input: PrefileInput): string {
     route: input.routeString,
     alternate: input.alternate ?? '',
   };
-  const q = new URLSearchParams({ flightPlan: btoa(JSON.stringify(payload)) });
+  const q = new URLSearchParams({ flightPlan: utf8ToBase64(JSON.stringify(payload)) });
   return `https://www.ivao.aero/flightplan?${q.toString()}`;
 }
 

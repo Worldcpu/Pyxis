@@ -15,6 +15,9 @@ export class RpcError extends Error {
 
 let nextId = 1;
 
+/** 默认超时（挂起后端防无限 loading——审查修复）。 */
+const DEFAULT_TIMEOUT_MS = 15_000;
+
 /**
  * 调用 JSON-RPC 方法。
  * @throws {RpcError} 业务错误（error body）或传输错误（HTTP 非 200）
@@ -24,11 +27,13 @@ export async function callRpc<T>(
   params: object,
   opts?: { signal?: AbortSignal; url?: string },
 ): Promise<T> {
+  const signal =
+    opts?.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
   const res = await fetch(opts?.url ?? RPC_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', method, params, id: nextId++ }),
-    signal: opts?.signal,
+    signal,
   });
 
   if (!res.ok) {
