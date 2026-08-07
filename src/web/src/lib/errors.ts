@@ -17,6 +17,8 @@ export function rpcErrorKey(code: number): string {
       return 'errors.invalidRequest';
     case -32700:
       return 'errors.parseError';
+    case -32001:
+      return 'errors.timeout';
     default:
       return 'errors.unknown';
   }

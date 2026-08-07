@@ -21,7 +21,6 @@ import { useState, type ReactNode } from 'react';
 
 import type { Airframe, FlightPlan } from '../../api/types';
 import { cn } from '../../lib/utils';
-import { formatAlt } from '../../lib/units';
 import { buildPilotEdgeUrl, buildVatsimUrl, buildIvaoUrl } from '../../lib/prefile';
 import type { PlanFormState } from './form-state';
 import { Badge } from '../ui/badge';
@@ -46,6 +45,8 @@ export interface FlightTaskProps {
   onDismissWarning: (key: WarningKey) => void;
   onExport: () => void;
   exporting: boolean;
+  /** 航路距离（审查修复：generate 响应无 distances——取候选权威值）。 */
+  distanceNm?: number;
 }
 
 /** 性能网格格（上标题 + 下数值，三列居中）。 */
@@ -172,7 +173,9 @@ function PrefileSection({
     cruiseFl: plan.altitude.fl,
     cruiseSpeedKt: speed ?? 0,
     airframeType: airframe?.type ?? '',
-    routeString: form.routeString,
+    // 权威航路串优先（审查修复：默认流程候选自动选中时 form.routeString
+    // 为空 → Prefile 链接携带空/旧航路）。
+    routeString: plan.route.route_string || form.routeString,
     alternate: plan.alternate || form.alternate,
   };
   const networks = [
@@ -224,11 +227,24 @@ export function FlightTask({
   onDismissWarning,
   onExport,
   exporting,
+  distanceNm,
 }: FlightTaskProps) {
   const { t } = useTranslation();
-  const warnings: Array<{ key: WarningKey; tone: 'error' | 'warning' }> = [];
+  const warnings: Array<{
+    key: WarningKey;
+    tone: 'error' | 'warning';
+    message?: string;
+  }> = [];
   if (plan.checks?.status === 'unflyable') {
     warnings.push({ key: 'unflyable', tone: 'error' });
+  }
+  // 审查修复：warning 状态 + checks.warnings 数组此前从未渲染——status
+  // 字符串化修复（04d5d56）的意图是让 ZFW 超 MZFW 等警告可见。
+  if (plan.checks?.status === 'warning') {
+    const list = plan.checks.warnings.length > 0 ? plan.checks.warnings : [''];
+    for (const message of list) {
+      warnings.push({ key: 'unflyable', tone: 'warning', message });
+    }
   }
   if (plan.mora_checked === false) {
     warnings.push({ key: 'manualRoute', tone: 'warning' });
@@ -240,7 +256,7 @@ export function FlightTask({
 
   const dep = plan.route.points[0];
   const arr = plan.route.points[plan.route.points.length - 1];
-  const enroute_nm = plan.distances?.enroute_nm ?? plan.distance_nm;
+  const enroute_nm = distanceNm ?? plan.distances?.enroute_nm ?? plan.distance_nm;
   const etd = form.etd || '--';
 
   return (
@@ -258,7 +274,9 @@ export function FlightTask({
           )}
         >
           <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="flex-1">{t(`task.warnings.${w.key}`)}</span>
+          <span className="flex-1">
+            {w.message ?? t(`task.warnings.${w.key}`)}
+          </span>
           <button
             type="button"
             aria-label={t('task.closeWarning')}
@@ -331,9 +349,11 @@ export function FlightTask({
             value={`${plan.weights?.zfw_kg ?? '--'} kg`}
           />
           <Metric label={t('task.performance.blockTime')} value="--" />
+          {/* 审查修复：米值用服务器权威 altitude.meters（前端重算
+              与 C++ lround 两套舍入可漂移）。 */}
           <Metric
             label={t('task.performance.cruise')}
-            value={formatAlt(plan.altitude.fl)}
+            value={`FL${plan.altitude.fl} / ${plan.altitude.meters} m`}
           />
           <Metric
             label={t('task.performance.airac')}

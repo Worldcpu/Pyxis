@@ -258,7 +258,11 @@ RpcResult HandleAlternates(const rapidjson::Value& params,
   if (!OptIdList(params, "avoid_icaos", &alt_params.avoid_icaos)) {
     return RpcError(400, "avoid_icaos 须为字符串数组（≤256）");
   }
-  if (ctx.airports == nullptr) return NoDatabase();
+  // 审查修复：机场索引缺失 ≠ navdata 缺失（缓存写盘失败时 db 可用、
+  // 索引未建——报错消息不得误导为 --navdata-dir 问题）。
+  if (ctx.airports == nullptr) {
+    return RpcError(-32000, "机场索引不可用（bfdb 缓存构建失败）");
+  }
   const std::string arrival = params["arrival"].GetString();
   const AirportEntry* arrival_entry = ctx.airports->Find(arrival);
   if (arrival_entry == nullptr) {
@@ -337,8 +341,9 @@ RpcResult HandleGenerate(const rapidjson::Value& params,
     if (!params["cruise_fl"].IsInt())
       return RpcError(400, "cruise_fl 必须为整数");
     const int fl = params["cruise_fl"].GetInt();
-    if (fl < 0 || fl > bf::service::kMaxFl) {
-      return RpcError(400, "cruise_fl 越界（0..600）");
+    // >0（审查修复：0 放行会产出地面高度 .PLN）且 ≤ kMaxFl。
+    if (fl <= 0 || fl > bf::service::kMaxFl) {
+      return RpcError(400, "cruise_fl 越界（1..600）");
     }
   }
   // 规则三态（决策 27）。
@@ -508,7 +513,11 @@ RpcResult HandleExport(const rapidjson::Value& params, const PlanContext& ctx) {
       !fp["altitude"].HasMember("fl") || !fp["altitude"]["fl"].IsInt()) {
     return RpcError(400, "flightplan.altitude.fl 必填（整数）");
   }
+  // 值校验（审查修复：0/负值 → 地面高度 .PLN 的失效模式仍可达）。
   cruise_fl = fp["altitude"]["fl"].GetInt();
+  if (cruise_fl <= 0 || cruise_fl > bf::service::kMaxFl) {
+    return RpcError(400, "flightplan.altitude.fl 越界（1..600）");
+  }
   PlnExportParams export_params;
   export_params.title = "Pyxis Flight Plan";
   export_params.fp_type = "IFR";
@@ -682,7 +691,8 @@ std::string RenderProfileJson(const Profile& profile) {
   return buffer.GetString();
 }
 
-// 校验（决策 55：name 非空 ≤32；k 1..15；min≤max；level low/high）。
+// 校验（决策 55：name 非空 ≤32；k 1..15；level low/high；高度带
+// 0..kMaxFl——审查修复：此前越界 profile 保存时静默、应用时 400）。
 const char* ValidateProfile(const Profile& profile) {
   if (profile.name.empty() || profile.name.size() > 32) {
     return "name 须为非空且 ≤32 字符";
@@ -693,6 +703,14 @@ const char* ValidateProfile(const Profile& profile) {
   if (profile.level.has_value() && *profile.level != "low" &&
       *profile.level != "high") {
     return "level 仅支持 low/high";
+  }
+  if (profile.min_fl.has_value() &&
+      (*profile.min_fl < 0 || *profile.min_fl > bf::service::kMaxFl)) {
+    return "min_fl 越界（0..600）";
+  }
+  if (profile.max_fl.has_value() &&
+      (*profile.max_fl < 0 || *profile.max_fl > bf::service::kMaxFl)) {
+    return "max_fl 越界（0..600）";
   }
   if (profile.min_fl.has_value() && profile.max_fl.has_value() &&
       *profile.min_fl > *profile.max_fl) {

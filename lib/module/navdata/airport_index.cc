@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "bf_adapter.h"
+#include "core/base/string_util.h"  // bf::ToUpper（审查修复：排除比较归一）
 #include "core/domain/coordinate.h"
 #include "io/cache/unified_cache.h"
 
@@ -40,7 +41,10 @@ std::vector<AlternateCandidate> FilterAlternates(
       continue;
     }
     // 到达场自身（距离 0 的假候选）与排除列表。
-    if (e.icao == params.exclude_icao || avoid.count(e.icao) != 0) {
+    // 排除比较统一大写（审查修复：Find 大小写不敏感而排除列表
+    // 敏感——小写 avoid 静默失效）。
+    const std::string upper = bf::ToUpper(e.icao);
+    if (upper == params.exclude_icao || avoid.count(upper) != 0) {
       continue;
     }
     // 距离过滤。

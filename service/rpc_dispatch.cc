@@ -67,10 +67,15 @@ std::string BuildResult(const std::string& result_json,
   writer.Key("jsonrpc");
   writer.String("2.0");
   writer.Key("result");
-  const auto result_type = !result_json.empty() && result_json[0] == '['
-                               ? rapidjson::kArrayType
-                               : rapidjson::kObjectType;
-  writer.RawValue(result_json.c_str(), result_json.size(), result_type);
+  if (result_json.empty()) {
+    // 空 result body → null 兜底（审查修复：RawValue 写 0 字节产出
+    // 畸形 JSON "result""id"）。
+    writer.Null();
+  } else {
+    const auto result_type =
+        result_json[0] == '[' ? rapidjson::kArrayType : rapidjson::kObjectType;
+    writer.RawValue(result_json.c_str(), result_json.size(), result_type);
+  }
   writer.Key("id");
   WriteId(writer, id);
   writer.EndObject();
@@ -85,9 +90,11 @@ std::optional<RpcResult> DispatchOne(
   const auto* id = has_id ? &doc["id"] : nullptr;
   // JSON-RPC §2.0 版本校验（审查修复：jsonrpc 字段存在但非 "2.0" →
   // 无效请求，决策 18 结构无效语义；缺失时宽容向后兼容）。
+  // 通知（无 id）豁免响应——§2.2 静默，与未知方法通知一致。
   if (doc.HasMember("jsonrpc") &&
       (!doc["jsonrpc"].IsString() ||
        std::strcmp(doc["jsonrpc"].GetString(), "2.0") != 0)) {
+    if (!has_id) return std::nullopt;  // 通知：静默。
     return RpcResult{false,
                      BuildErrorImpl(kInvalidRequest, "invalid request", id),
                      kInvalidRequest, ""};

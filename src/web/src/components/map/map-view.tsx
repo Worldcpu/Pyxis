@@ -19,7 +19,7 @@ import {
 } from 'react-leaflet';
 
 import type { Alternate, RouteCandidate } from '../../api/types';
-import type { Theme } from '../theme-provider';
+import { useTheme, type Theme } from '../theme-provider';
 import { Switch } from '../ui/switch';
 
 const BASEMAPS: Record<'light' | 'dark', string> = {
@@ -53,10 +53,14 @@ export function useLayerVisibility(): [
       const next = new Set(prev);
       if (on) next.add(key);
       else next.delete(key);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
       return next;
     });
   };
+
+  // 持久化独立 effect（审查修复：setItem 在 updater 内 StrictMode 双跑）。
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...visible]));
+  }, [visible]);
   return [visible, toggle];
 }
 
@@ -144,12 +148,10 @@ export const MapView = memo(function MapView({
   theme,
 }: MapViewProps) {
   const [visible, toggle] = useLayerVisibility();
-  const resolvedTheme: 'light' | 'dark' =
-    theme === 'system'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
-      : theme;
+  // 审查修复：system 主题解析统一走 provider（本地 matchMedia 快照在
+  // OS 切换时不更新）。
+  const { resolvedTheme } = useTheme();
+  void theme;
   const center = centerOf(candidates);
   const zoom = candidates.length > 0 ? 6 : 4;
 

@@ -22,6 +22,7 @@ export const zh = {
     invalidRequest: '无效请求',
     parseError: '解析错误',
     unknown: '未知错误',
+    timeout: '请求超时，服务响应过慢',
     offline: '无法连接服务，请确认 px_server 已启动（端口 19100）',
     banner: '与服务连接中断，正在重连…',
   },

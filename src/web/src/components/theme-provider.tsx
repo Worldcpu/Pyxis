@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -15,6 +16,9 @@ export type Theme = 'light' | 'dark' | 'system';
 
 interface ThemeContextValue {
   theme: Theme;
+  /** 实际生效主题（system 已解析——审查修复：地图底图等消费方此前
+   *  自算 matchMedia，system 下 OS 切换不跟随）。 */
+  resolvedTheme: 'light' | 'dark';
   setTheme: (theme: Theme) => void;
 }
 
@@ -45,19 +49,36 @@ export function ThemeProvider({
       : defaultTheme;
   });
 
-  // 首次挂载应用主题 class（避免闪烁）。
+  // resolved 状态跟随 theme + 系统变化（审查修复：此前 system 切换
+  // 只改 class 无 state——MapView 等消费方不重渲染）。
+  const [resolved, setResolved] = useState<'light' | 'dark'>(() =>
+    theme === 'system'
+      ? systemPrefersDark()
+        ? 'dark'
+        : 'light'
+      : theme,
+  );
   useEffect(() => {
-    applyThemeClass(theme);
-  }, [theme]);
-
-  // system 态监听系统主题变化（仅影响 class，不改 state）。
-  useEffect(() => {
+    const update = () =>
+      setResolved(
+        theme === 'system'
+          ? systemPrefersDark()
+            ? 'dark'
+            : 'light'
+          : theme,
+      );
+    update();
     if (theme !== 'system') return;
     const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const listener = () => applyThemeClass('system');
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
   }, [theme]);
+
+  // 首帧即应用主题 class（useLayoutEffect——审查修复：useEffect 在
+  // paint 后执行，存储暗色时先亮后暗闪烁）。
+  useLayoutEffect(() => {
+    applyThemeClass(resolved);
+  }, [resolved]);
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
@@ -68,7 +89,10 @@ export function ThemeProvider({
     }
   }, []);
 
-  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
+  const value = useMemo(
+    () => ({ theme, resolvedTheme: resolved, setTheme }),
+    [theme, resolved, setTheme],
+  );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

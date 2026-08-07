@@ -17,7 +17,13 @@ export type CheckStatus = 'ok' | 'warning' | 'unflyable';
 
 /** plan.generate 响应。 */
 export interface FlightPlan {
-  route: { points: RoutePoint[] };
+  route: {
+    points: RoutePoint[];
+    /** 完整航路串（审查修复：Prefile/显示用权威值，候选回填可能为空）。 */
+    route_string?: string;
+    sid?: string;
+    star?: string;
+  };
   altitude: {
     fl: number;
     meters: number;

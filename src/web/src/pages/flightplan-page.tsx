@@ -73,28 +73,41 @@ export function FlightPlanPage() {
     [t],
   );
 
-  // 挂载：airframe 档案 + AIRAC 周期（决策 6）。
+  // 挂载：airframe 档案 + AIRAC 周期（决策 6；取消守卫——审查修复：
+  // 卸载/StrictMode 双挂载后响应写过期状态）。
   useEffect(() => {
+    let cancelled = false;
     callRpc<Airframe[]>('airframe.list', {})
-      .then(setAirframes)
+      .then((r) => {
+        if (!cancelled) setAirframes(r);
+      })
       .catch(() => setAirframes([]));
     callRpc<ListCyclesResult>('list_cycles', {})
-      .then((r) => setCycles(r.cycles))
+      .then((r) => {
+        if (!cancelled) setCycles(r.cycles);
+      })
       .catch(() => setCycles([]));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // arrival 变化 → 拉取备降候选（决策 14 修订：plan.alternates）。
+  // arrival 变化 → 拉取备降候选（决策 14 修订：plan.alternates；
+  // debounce 300ms + 取消守卫——审查修复：每按键一次 HTTP POST）。
   useEffect(() => {
     const arrival = form.arrival.trim().toUpperCase();
     if (arrival.length !== 4) return;
     let cancelled = false;
-    callRpc<Alternate[]>('plan.alternates', { arrival })
-      .then((r) => {
-        if (!cancelled) setAlternates(r);
-      })
-      .catch(() => {});
+    const timer = setTimeout(() => {
+      callRpc<Alternate[]>('plan.alternates', { arrival })
+        .then((r) => {
+          if (!cancelled) setAlternates(r);
+        })
+        .catch(() => {});
+    }, 300);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [form.arrival]);
 
@@ -146,6 +159,12 @@ export function FlightPlanPage() {
       setError(t('form.type') + ' — ' + t('errors.badRequest'));
       return;
     }
+    // zfw 模式空输入提前拦截（审查修复：字段被 JSON 丢弃 → 后端报
+    // 泛化"配载参数必填"且不指明缺哪个）。
+    if (form.payloadMode === 'zfw' && form.zfwKg.trim() === '') {
+      setError(t('form.zfwKg') + ' — ' + t('errors.badRequest'));
+      return;
+    }
     setError(null);
     setLoading('generate');
     try {
@@ -158,7 +177,9 @@ export function FlightPlanPage() {
         min_fl: toOptionalNumber(form.minFl),
         max_fl: toOptionalNumber(form.maxFl),
         altitude_rule: form.altitudeRule,
-        candidate: true,
+        // 审查修复：仅候选路径标记 mora_checked——手写航路不得谎报
+        // 地形安全（决策 26 语义）。
+        candidate: selected !== null,
         random_seed: candidateSeed > 0 ? candidateSeed : undefined,
         ...(form.payloadMode === 'zfw'
           ? { zfw_kg: toOptionalNumber(form.zfwKg) }
@@ -192,8 +213,12 @@ export function FlightPlanPage() {
       const a = document.createElement('a');
       a.href = url;
       a.download = result.filename;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      // 审查修复：同步 revoke 在 WebKit/Firefox 竞态丢失下载——延迟到
+      // 事件循环之后。
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       setError(describeError(e));
     } finally {
@@ -208,13 +233,22 @@ export function FlightPlanPage() {
       setError(t('errors.parseError'));
       return;
     }
-    setForm((prev) => ({
-      ...prev,
-      departure: parsed.departure || prev.departure,
-      arrival: parsed.arrival || prev.arrival,
-      routeString: parsed.routeString || prev.routeString,
-      airframeType: parsed.airframeType || prev.airframeType,
-    }));
+    setForm((prev) => {
+      const type = parsed.airframeType || prev.airframeType;
+      // 审查修复：导入只带机型不带构型 → 两级选择断链；type 唯一
+      // 匹配时自动选其 variant，否则留待用户选。
+      const candidates = airframes.filter((a) => a.type === type);
+      const variant =
+        candidates.length === 1 ? candidates[0].variant : prev.airframeVariant;
+      return {
+        ...prev,
+        departure: parsed.departure || prev.departure,
+        arrival: parsed.arrival || prev.arrival,
+        routeString: parsed.routeString || prev.routeString,
+        airframeType: type,
+        airframeVariant: variant,
+      };
+    });
   };
 
   // 过期检测缓存（每按键重算 JSON.stringify——审查修复）。
@@ -305,6 +339,7 @@ export function FlightPlanPage() {
               }
               onExport={onExport}
               exporting={loading === 'export'}
+              distanceNm={selected?.total_distance_nm}
             />
           )}
         </div>

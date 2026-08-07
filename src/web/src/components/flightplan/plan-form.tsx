@@ -101,12 +101,20 @@ export function PlanForm({
   // 机型的经验/实验性分类（决策 8 徽章）。
   const experimental = new Set(['openap', 'fcom']);
   const airframeByType = airframes.filter((a) => a.type === value.airframeType);
-  const variants = airframeByType.length > 0 ? airframeByType : airframes;
+  // 审查修复：未选 type 时 variant 禁用（此前回退列出全部机型变体，
+  // 产生 (type, variant) 不一致组合且生成被泛化错误阻塞）。
+  const variants = value.airframeType ? airframeByType : [];
 
-  const [icaoErrors, setIcaoErrors] = useState<{
-    departure?: string;
-    arrival?: string;
+  // 审查修复：touched 状态驱动派生校验（此前缓存错误快照——SimBrief
+  // 导入/候选回填写入不触发 onBlur → 错误残留）。
+  const [touched, setTouched] = useState<{
+    departure?: boolean;
+    arrival?: boolean;
   }>({});
+  const icaoErrors = {
+    departure: touched.departure ? icaoError(value.departure) : undefined,
+    arrival: touched.arrival ? icaoError(value.arrival) : undefined,
+  };
 
   return (
     <div className="h-full overflow-y-auto">
@@ -134,12 +142,7 @@ export function PlanForm({
               value={value.departure}
               placeholder={t('form.departurePlaceholder')}
               onChange={(e) => set({ departure: e.target.value.toUpperCase() })}
-              onBlur={() =>
-                setIcaoErrors((p) => ({
-                  ...p,
-                  departure: icaoError(value.departure),
-                }))
-              }
+              onBlur={() => setTouched((p) => ({ ...p, departure: true }))}
             />
           </Field>
           <Field label={t('form.arrival')} error={icaoErrors.arrival}>
@@ -147,12 +150,7 @@ export function PlanForm({
               value={value.arrival}
               placeholder={t('form.arrivalPlaceholder')}
               onChange={(e) => set({ arrival: e.target.value.toUpperCase() })}
-              onBlur={() =>
-                setIcaoErrors((p) => ({
-                  ...p,
-                  arrival: icaoError(value.arrival),
-                }))
-              }
+              onBlur={() => setTouched((p) => ({ ...p, arrival: true }))}
             />
           </Field>
           <Field label={t('form.runway')}>
