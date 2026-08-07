@@ -25,11 +25,11 @@ struct GeoCoord {
   double longitude = 0.0;
 };
 
-// 机场索引条目（由 graph 段机场顶点构建）。
+// 机场索引条目（由 graph 段机场顶点构建；坐标/ICAO 为唯一消费字段——
+// elevation 无消费方，审查简化删除）。
 struct AirportEntry {
   std::string icao;
   GeoCoord coord;
-  int elevation_ft = 0;
 };
 
 // 备降过滤参数（决策 12 修订 2026-08-07：距离上限/排除列表；跑道过滤
@@ -37,6 +37,7 @@ struct AirportEntry {
 struct AlternatesParams {
   double max_distance_nm = 400.0;
   std::vector<std::string> avoid_icaos;
+  std::string exclude_icao;  // 到达场自身（距离 0 必须排除，审查修复）
   size_t limit = 5;
 };
 

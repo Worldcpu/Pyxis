@@ -197,12 +197,46 @@ TEST_CASE("plan.generate: cruise_fl 越界 → 400", "[plan][unit]") {
   CHECK(r.error_code == 400);
 }
 
-TEST_CASE("plan.generate: 校验通过 + navdata 缺失 → -32000", "[plan][unit]") {
+TEST_CASE("plan.generate: 无配载输入 → 400（审查修复：缺省 0 假数据）",
+          "[plan][unit]") {
   const auto handlers = px::MakePlanHandlers({});
   const auto r = Call(handlers, "plan.generate",
                       R"({"route_string":"ZUCK TONIN ZBAA",
                           "airframe":)" +
                           std::string(kValidAirframe) + "}");
+  CHECK(!r.ok);
+  CHECK(r.error_code == 400);
+}
+
+TEST_CASE("plan.generate: min_fl 类型错/越界 → 400（审查修复）",
+          "[plan][unit]") {
+  const auto handlers = px::MakePlanHandlers({});
+  {
+    const auto r = Call(handlers, "plan.generate",
+                        R"({"route_string":"ZUCK TONIN ZBAA",
+                            "airframe":)" +
+                            std::string(kValidAirframe) +
+                            R"(,"min_fl":"350","zfw_kg":50000})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+  {
+    const auto r = Call(handlers, "plan.generate",
+                        R"({"route_string":"ZUCK TONIN ZBAA",
+                            "airframe":)" +
+                            std::string(kValidAirframe) +
+                            R"(,"min_fl":900,"max_fl":900,"zfw_kg":50000})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+}
+
+TEST_CASE("plan.generate: 校验通过 + navdata 缺失 → -32000", "[plan][unit]") {
+  const auto handlers = px::MakePlanHandlers({});
+  const auto r = Call(handlers, "plan.generate",
+                      R"({"route_string":"ZUCK TONIN ZBAA",
+                          "airframe":)" +
+                          std::string(kValidAirframe) + R"(,"zfw_kg":50000})");
   CHECK(!r.ok);
   CHECK(r.error_code == -32000);
 }

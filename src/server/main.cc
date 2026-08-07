@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -108,6 +109,16 @@ class RpcRequestHandler : public bf::http_server::RequestHandler {
                           "application/json", cors);
       return;
     }
+    // CORS 预检（浏览器对 application/json 跨源 POST 必发 OPTIONS）：
+    // 白名单内放行并声明 methods/headers——否则 WebView fetch 全被拦。
+    if (req.method == "OPTIONS") {
+      auto preflight = cors;
+      preflight.emplace_back("Access-Control-Allow-Methods", "POST, OPTIONS");
+      preflight.emplace_back("Access-Control-Allow-Headers", "content-type");
+      conn->WriteResponse(200, "", req.keep_alive, "application/json",
+                          preflight);
+      return;
+    }
     // 传输层快速失败（非 POST / 非 /rpc / 空 body——同步，不 offload）。
     if (req.method != "POST" || req.path != "/rpc" || req.body.empty()) {
       const auto resp =
@@ -183,23 +194,32 @@ int main(int argc, char** argv) {
     auto opened = bf::NavDatabase::Open(args.navdata_dir, "xplane12");
     if (opened.has_value()) {
       // 决策 49：同步 WriteUnified 落盘 bfdb（首启秒级）→ px 机场索引。
+      // WriteUnified 返回值是 CIFP 写入机场数（非 cycle——审查修复）；
+      // cycle 从 NavDatabase::cycle() 取。
+      const uint32_t cycle = opened.value().cycle();
       const std::string tmp_cache = args.cache_dir + "/nav_new.bfdb";
       auto written = opened.value().WriteUnified(tmp_cache);
       if (written.has_value()) {
-        const uint32_t cycle = written.value();
         const std::string final_path =
             args.cache_dir + "/" + bf::FormatBfdbName(cycle);
-        std::rename(tmp_cache.c_str(), final_path.c_str());
-        auto index = px::AirportIndex::Open(final_path);
-        if (index.has_value()) {
-          airports.emplace(std::move(index.value()));
-          ctx.airports = &*airports;
+        // filesystem::rename 覆盖已存在目标（POSIX 语义；MSVC rename
+        // 对已存在目标失败——审查修复）。
+        std::error_code ec;
+        std::filesystem::rename(tmp_cache, final_path, ec);
+        if (ec) {
+          std::fprintf(stderr, "警告: bfdb 落盘失败（%s），缓存未更新\n",
+                       ec.message().c_str());
         } else {
-          std::fprintf(stderr, "警告: 机场索引构建失败（%s）\n",
-                       index.error().message.c_str());
+          auto index = px::AirportIndex::Open(final_path);
+          if (index.has_value()) {
+            airports.emplace(std::move(index.value()));
+            ctx.airports = &*airports;
+          } else {
+            std::fprintf(stderr, "警告: 机场索引构建失败（%s）\n",
+                         index.error().message.c_str());
+          }
         }
-        auto header = bf::UnifiedCache::ReadHeader(final_path);
-        if (header.has_value()) ctx.cycle = header.value().cycle;
+        ctx.cycle = cycle;
       } else {
         std::fprintf(stderr, "警告: bfdb 构建失败（%s）\n",
                      written.error().message.c_str());

@@ -119,3 +119,12 @@ TEST_CASE("airframe: 巡航速度（决策 38：可选，提供则 > 0）",
     CHECK(px::ValidateAirframe(a).empty());  // 未录 = 合法（Prefile 提示缺失）
   }
 }
+
+TEST_CASE("airframe: 升限物理上限（审查修复——防 handler int 窄化 UB）",
+          "[airframe][unit]") {
+  auto a = MakeValid();
+  a.service_ceiling_ft = 3e9;  // 超上限（double→int 窄化 UB）
+  const auto issues = px::ValidateAirframe(a);
+  REQUIRE(issues.size() == 1);
+  CHECK(issues[0].field == "service_ceiling_ft");
+}

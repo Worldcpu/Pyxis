@@ -35,6 +35,7 @@ int ErrorToRpcCode(ErrorCode code) {
   switch (code) {
     case ErrorCode::kInvalidInput:
     case ErrorCode::kInvalidArgument:
+    case ErrorCode::kParseError:  // 手写 route_string 解析失败 = 参数错
       return 400;
     case ErrorCode::kNotFound:
       return 404;
@@ -123,10 +124,17 @@ RpcResult HandleRoutes(const rapidjson::Value& params, const PlanContext& ctx) {
   request.arrival = arrival;
 
   // 高度带（决策 7 默认 FL250-410 保证 MORA；bf 校验语义：min≤max、
-  // 非负、≤kMaxFl；单侧给定时另一侧默认同值）。
+  // 非负、≤kMaxFl；单侧给定时另一侧默认同值；present 非 int 拒绝——
+  // 审查修复：此前类型错静默回退默认带）。
   int min_fl = 250, max_fl = 410;
-  const bool has_min = params.HasMember("min_fl") && params["min_fl"].IsInt();
-  const bool has_max = params.HasMember("max_fl") && params["max_fl"].IsInt();
+  const bool has_min = params.HasMember("min_fl");
+  const bool has_max = params.HasMember("max_fl");
+  if (has_min && !params["min_fl"].IsInt()) {
+    return RpcError(400, "min_fl 必须为整数");
+  }
+  if (has_max && !params["max_fl"].IsInt()) {
+    return RpcError(400, "max_fl 必须为整数");
+  }
   if (has_min || has_max) {
     min_fl = has_min ? params["min_fl"].GetInt() : params["max_fl"].GetInt();
     max_fl = has_max ? params["max_fl"].GetInt() : params["min_fl"].GetInt();
@@ -225,7 +233,9 @@ RpcResult HandleAlternates(const rapidjson::Value& params,
     return RpcError(404, "到达机场不在导航数据中");
   }
 
-  // 决策 12 修订：距离 + 排除 + 4 字 ICAO（跑道过滤砍掉——无数据源）。
+  // 决策 12 修订：距离 + 排除 + 4 字 ICAO（跑道过滤砍掉——无数据源）；
+  // 到达场自身排除（0 NM 假候选，审查修复；用索引条目规范大写）。
+  alt_params.exclude_icao = arrival_entry->icao;
   const auto candidates = FilterAlternates(ctx.airports->airports(),
                                            arrival_entry->coord, alt_params);
   return {true, RenderAlternatesJson(candidates), 0, ""};
@@ -256,6 +266,10 @@ RpcResult HandleGenerate(const rapidjson::Value& params,
   const bool has_zfw = params.HasMember("zfw_kg");
   if (has_pax && has_zfw) {
     return RpcError(400, "pax_count/cargo_kg 与 zfw_kg 互斥");
+  }
+  // 无任何配载输入 → 400（缺省 0 会产出 ZFW=0 的物理不可能计划——审查修复）。
+  if (!has_pax && !has_zfw) {
+    return RpcError(400, "配载参数必填（pax_count/cargo_kg 或 zfw_kg）");
   }
   PayloadResult payload;
   if (has_zfw) {
@@ -313,6 +327,22 @@ RpcResult HandleGenerate(const rapidjson::Value& params,
       return RpcError(400, "candidate 必须为布尔");
     candidate = params["candidate"].GetBool();
   }
+  // auto 高度带（决策 25；校验对齐 plan.routes——审查修复：此前在
+  // ParseRoute 后校验会被 db 缺失短路，且缺 min≤max/非负/≤600 检查）。
+  int min_fl = 250, max_fl = 410;
+  if (params.HasMember("min_fl")) {
+    if (!params["min_fl"].IsInt()) return RpcError(400, "min_fl 必须为整数");
+    min_fl = params["min_fl"].GetInt();
+  }
+  if (params.HasMember("max_fl")) {
+    if (!params["max_fl"].IsInt()) return RpcError(400, "max_fl 必须为整数");
+    max_fl = params["max_fl"].GetInt();
+  }
+  if (min_fl > max_fl) return RpcError(400, "min_fl 不得超过 max_fl");
+  if (min_fl < 0) return RpcError(400, "min_fl/max_fl 必须非负");
+  if (max_fl > bf::service::kMaxFl) {
+    return RpcError(400, "max_fl 不得超过 600");
+  }
   // 五字段（决策 45 回显）。
   std::string callsign, etd, alternate;
   if (!OptString(params, "callsign", &callsign) ||
@@ -335,7 +365,8 @@ RpcResult HandleGenerate(const rapidjson::Value& params,
   // 高度填充。
   if (has_cruise) {
     const int fl = params["cruise_fl"].GetInt();
-    plan.altitude = {fl, fl * 30,
+    // 米制等价统一 30.48 换算（对齐 CandidateLevels——审查修复 fl*30）。
+    plan.altitude = {fl, static_cast<int>(std::lround(fl * 30.48)),
                      rule == AltitudeRule::kAuto ? AltitudeRule::kIcao : rule,
                      "手动", true};
   } else {
@@ -350,13 +381,7 @@ RpcResult HandleGenerate(const rapidjson::Value& params,
       track_deg = bf::Coordinate{a.latitude, a.longitude}.BearingTo(
           bf::Coordinate{b.latitude, b.longitude});
     }
-    int min_fl = 250, max_fl = 410;
-    if (params.HasMember("min_fl") && params["min_fl"].IsInt()) {
-      min_fl = params["min_fl"].GetInt();
-    }
-    if (params.HasMember("max_fl") && params["max_fl"].IsInt()) {
-      max_fl = params["max_fl"].GetInt();
-    }
+    // min_fl/max_fl 已在参数区解析并校验（上方）——此处直接使用。
     const auto levels = CandidateLevels(
         effective, track_deg, static_cast<int>(airframe.service_ceiling_ft),
         min_fl, max_fl);
@@ -410,13 +435,19 @@ RpcResult HandleExport(const rapidjson::Value& params, const PlanContext& ctx) {
   if (points.Size() < 2) {
     return RpcError(400, "flightplan.route.points 至少 2 个点");
   }
+  // 逐点校验（含中间点——缺失字段/类型错在 rapidjson 上是断言崩溃，
+  // 必须全部先查后取）。
+  for (rapidjson::SizeType i = 0; i < points.Size(); ++i) {
+    const auto& point = points[i];
+    if (!point.IsObject() || !point.HasMember("ident") ||
+        !point["ident"].IsString() || !point.HasMember("lat") ||
+        !point["lat"].IsNumber() || !point.HasMember("lon") ||
+        !point["lon"].IsNumber()) {
+      return RpcError(400, "flightplan.route.points 元素须含 ident/lat/lon");
+    }
+  }
   const auto& first = points[0];
   const auto& last = points[points.Size() - 1];
-  if (!first.HasMember("ident") || !first.HasMember("lat") ||
-      !first.HasMember("lon") || !last.HasMember("ident") ||
-      !last.HasMember("lat") || !last.HasMember("lon")) {
-    return RpcError(400, "flightplan.route.points 首尾点缺字段");
-  }
   int cruise_fl = 0;
   if (fp.HasMember("altitude") && fp["altitude"].IsObject() &&
       fp["altitude"].HasMember("fl") && fp["altitude"]["fl"].IsInt()) {
@@ -460,14 +491,6 @@ RpcResult HandleExport(const rapidjson::Value& params, const PlanContext& ctx) {
 
 // ---- airframe 四端点（决策 21：data_dir/airframes.json 持久层）----
 
-// 决策 44：airframe 文件写串行化——handler 在 libuv 线程池执行，并发
-// upsert/delete 的 read-modify-write 会互相覆盖；函数内 static 互斥
-// （并发原语，非业务可变状态）。
-std::mutex& AirframeMutex() {
-  static std::mutex mutex;
-  return mutex;
-}
-
 std::string AirframesPath(const PlanContext& ctx) {
   return ctx.data_dir + "/airframes.json";
 }
@@ -481,6 +504,7 @@ std::string RenderAirframeJson(const Airframe& airframe) {
 
 RpcResult HandleAirframeList(const rapidjson::Value&, const PlanContext& ctx) {
   if (ctx.data_dir.empty()) return RpcError(-32000, "data_dir 未配置");
+  std::lock_guard<std::mutex> lock(*ctx.file_mutex);  // 与写互斥（审查修复）
   const auto airframes = LoadAirframes(AirframesPath(ctx));
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -510,6 +534,7 @@ RpcResult HandleAirframeGet(const rapidjson::Value& params,
   if (!GetAirframeKey(params, &type, &variant)) {
     return RpcError(400, "type/variant 必填");
   }
+  std::lock_guard<std::mutex> lock(*ctx.file_mutex);  // 与写互斥（审查修复）
   for (const auto& airframe : LoadAirframes(AirframesPath(ctx))) {
     if (airframe.type == type && airframe.variant == variant) {
       return {true, RenderAirframeJson(airframe), 0, ""};
@@ -533,7 +558,7 @@ RpcResult HandleAirframeUpsert(const rapidjson::Value& params,
     return RpcError(400, "airframe 校验失败: " + issues.front().field + " " +
                              issues.front().message);
   }
-  std::lock_guard<std::mutex> lock(AirframeMutex());  // 决策 44 串行化
+  std::lock_guard<std::mutex> lock(*ctx.file_mutex);  // 决策 44 串行化
   auto airframes = LoadAirframes(AirframesPath(ctx));
   bool replaced = false;
   for (auto& airframe : airframes) {
@@ -559,7 +584,7 @@ RpcResult HandleAirframeDelete(const rapidjson::Value& params,
   if (!GetAirframeKey(params, &type, &variant)) {
     return RpcError(400, "type/variant 必填");
   }
-  std::lock_guard<std::mutex> lock(AirframeMutex());  // 决策 44 串行化
+  std::lock_guard<std::mutex> lock(*ctx.file_mutex);  // 决策 44 串行化
   auto airframes = LoadAirframes(AirframesPath(ctx));
   bool removed = false;
   airframes.erase(std::remove_if(airframes.begin(), airframes.end(),
@@ -577,7 +602,14 @@ RpcResult HandleAirframeDelete(const rapidjson::Value& params,
     return RpcError(-32000, stored.error().message);
   }
   if (!removed) return RpcError(404, "airframe 不存在");
-  return {true, R"({"ok":true})", 0, ""};
+  // 手写 JSON 字面量违反 Writer 纪律（CLAUDE.md）——审查修复。
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  writer.StartObject();
+  writer.Key("ok");
+  writer.Bool(true);
+  writer.EndObject();
+  return {true, buffer.GetString(), 0, ""};
 }
 
 // list_cycles（决策 18：px 包装；Phase 9 单周期）。
@@ -599,6 +631,8 @@ RpcResult NoDatabaseHandler(const rapidjson::Value&) { return NoDatabase(); }
 }  // namespace
 
 std::unordered_map<std::string, RpcHandler> MakePlanHandlers(PlanContext ctx) {
+  // 决策 44：airframe 文件写串行化互斥（随 ctx 拷贝共享）。
+  if (!ctx.file_mutex) ctx.file_mutex = std::make_shared<std::mutex>();
   std::unordered_map<std::string, RpcHandler> handlers;
   // 透传（决策 16：bf 8 个，find_routes 排除）；db 缺失时统一 -32000。
   if (ctx.db != nullptr) {

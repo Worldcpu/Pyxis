@@ -2,10 +2,11 @@
 // airframe JSON 转换与文件存取实现（决策 21/28/38）。
 #include "px/service/airframe_json.h"
 
-#include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string_view>
+#include <system_error>
 #include <utility>
 
 namespace px {
@@ -141,7 +142,8 @@ Result<void> StoreAirframes(const std::string& file,
   }
   writer.EndArray();
   writer.EndObject();
-  // 原子写：临时文件 + rename，避免中断留下半写档案。
+  // 原子写：临时文件 + rename（覆盖语义——MSVC rename 对已存在目标
+  // 失败，用 filesystem::rename；审查修复），避免中断留下半写档案。
   const std::string tmp = file + ".tmp";
   {
     std::ofstream out(tmp, std::ios::binary);
@@ -149,9 +151,16 @@ Result<void> StoreAirframes(const std::string& file,
       return Err(Error(ErrorCode::kDataMissing, "无法写入 " + tmp));
     }
     out << buffer.GetString();
+    out.flush();
+    if (!out) {  // 写盘失败（磁盘满等）不得覆盖旧档案
+      return Err(Error(ErrorCode::kInternalError, "写入失败: " + tmp));
+    }
   }
-  if (std::rename(tmp.c_str(), file.c_str()) != 0) {
-    return Err(Error(ErrorCode::kInternalError, "无法替换 " + file));
+  std::error_code ec;
+  std::filesystem::rename(tmp, file, ec);
+  if (ec) {
+    return Err(Error(ErrorCode::kInternalError,
+                     "无法替换 " + file + ": " + ec.message()));
   }
   return Ok();
 }

@@ -9,6 +9,16 @@
 
 namespace px {
 
+// 协议级错误码（决策 18 分区；单源导出——http_rpc 传输层复用，审查修复）。
+inline constexpr int kRpcParseError = -32700;      // 请求文本非法 JSON
+inline constexpr int kRpcInvalidRequest = -32600;  // 结构合法但非请求
+inline constexpr int kRpcMethodNotFound = -32601;  // 未知方法
+
+// 组装 JSON-RPC error 响应（含 id 回显；id 为 nullptr → null）。
+// 传输层（http_rpc）与分派层共用同一信封（审查修复：消除双实现）。
+std::string BuildError(int code, const std::string& message,
+                       const rapidjson::Value* id);
+
 // JSON-RPC 2.0 分派结果（决策 18：错误码分区——-32700 解析错 / -32600
 // 无效请求 / -32601 未知方法 / -32000 内部；业务错误透传 bf 风格码
 // 400/404/422）。

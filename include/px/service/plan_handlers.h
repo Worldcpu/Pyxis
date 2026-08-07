@@ -6,6 +6,8 @@
 
 #include <rapidjson/document.h>
 
+#include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -25,6 +27,10 @@ struct PlanContext {
   const AirportIndex* airports = nullptr;  // alternates 数据源（决策 48）
   std::string data_dir;  // airframe 档案目录（airframes.json）
   uint32_t cycle = 0;    // 当前 AIRAC 周期（0 = 无，list_cycles）
+  // airframe 文件写串行化（决策 44：handler 在线程池执行；MakePlanHandlers
+  // 保证非空——shared_ptr 随 ctx 拷贝共享同一互斥；审查修复：原函数内
+  // static 违反"禁 static 可变状态"）。
+  std::shared_ptr<std::mutex> file_mutex;
 };
 
 // 组装全端点 handler 表：plan.routes/generate/alternates/export +

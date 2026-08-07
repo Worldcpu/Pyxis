@@ -101,6 +101,20 @@ TEST_CASE("FilterAlternates: 无候选（距离内无机场）返回空") {
   CHECK(result.empty());
 }
 
+TEST_CASE("FilterAlternates: 到达场自身排除（0 NM 假候选，审查修复）") {
+  const std::vector<px::AirportEntry> airports = {
+      Airport("ZUUU", 0.0, 0.0),  // 到达场自身（距离 0）
+      Airport("ZUCK", 2.0, 0.0),  // ≈120NM
+      Airport("ZBAA", 5.0, 0.0),  // ≈300NM
+  };
+  px::AlternatesParams params;
+  params.exclude_icao = "ZUUU";
+  const auto result = px::FilterAlternates(airports, kArrival, params);
+  REQUIRE(result.size() == 2);
+  CHECK(result[0].icao == "ZUCK");
+  CHECK(result[0].distance_nm > 0.0);
+}
+
 // S1b：索引构建错误路径（不依赖真实 bfdb——空/损坏文件）。
 TEST_CASE("AirportIndex::Open: 不存在的 bfdb 返回 kDataMissing") {
   const auto result =

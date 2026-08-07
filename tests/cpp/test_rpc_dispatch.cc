@@ -248,3 +248,34 @@ TEST_CASE("RPC: method 非字符串与响应边界", "[rpc][unit]") {
     CHECK(resp.json.empty());
   }
 }
+
+TEST_CASE("RPC: params 非对象提前拒绝（-32600，审查修复）", "[rpc][unit]") {
+  const auto handlers = MakeHandlers();
+  {
+    // 数组 params——此前会触发 rapidjson 断言崩溃。
+    const auto resp = px::DispatchRpc(
+        R"({"method":"lookup_airports","params":["a","b"],"id":1})", handlers);
+    CHECK(!resp.ok);
+    CHECK(resp.error_code == -32600);
+    CHECK(resp.json.find("\"id\":1") != std::string::npos);
+  }
+  {
+    const auto resp =
+        px::DispatchRpc(R"({"method":"lookup_airports","params":42,"id":2})", handlers);
+    CHECK(!resp.ok);
+    CHECK(resp.error_code == -32600);
+  }
+  {
+    const auto resp =
+        px::DispatchRpc(R"({"method":"lookup_airports","params":null,"id":3})", handlers);
+    CHECK(!resp.ok);
+    CHECK(resp.error_code == -32600);
+  }
+  {
+    // 通知（无 id）+ 非法 params：静默。
+    const auto resp =
+        px::DispatchRpc(R"({"method":"lookup_airports","params":null})", handlers);
+    CHECK(resp.ok);
+    CHECK(resp.json.empty());
+  }
+}

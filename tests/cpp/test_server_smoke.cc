@@ -42,7 +42,9 @@ class SmokeHandler : public bf::http_server::RequestHandler {
   std::unordered_map<std::string, px::RpcHandler> handlers_ = MakeHandlers();
 };
 
-// 客户端状态（回调经指针访问；错误记录在主线程断言）。
+// 客户端状态（回调经指针访问；错误记录在主线程断言）。读缓冲为成员
+// （审查修复：原 static 缓冲违反"禁 static 可变状态"，且并发读会互相
+// 覆盖）。
 struct Client {
   uv_tcp_t socket{};
   uv_connect_t connect_req{};
@@ -52,11 +54,12 @@ struct Client {
   std::string error;
   bool connect_ok = false;
   bool full_response = false;
+  char read_buf[16384];
 };
 
-void OnAlloc(uv_handle_t*, size_t suggested, uv_buf_t* buf) {
-  static char tmp[16384];
-  *buf = uv_buf_init(tmp, sizeof(tmp));
+void OnAlloc(uv_handle_t* handle, size_t suggested, uv_buf_t* buf) {
+  auto* client = static_cast<Client*>(handle->data);
+  *buf = uv_buf_init(client->read_buf, sizeof(client->read_buf));
 }
 
 void OnRead(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {

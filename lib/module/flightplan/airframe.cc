@@ -27,8 +27,12 @@ std::vector<AirframeIssue> ValidateAirframe(const Airframe& airframe) {
         &issues);
   Check(airframe.unit_bag_kg > 0.0, "unit_bag_kg", "单位行李重量必须为正",
         &issues);
+  // 升限必须为正且物理上限（FL600 = 60000ft；审查修复——handler 有
+  // static_cast<int> 窄化，超上限 double 转 int 是 UB）。
   Check(airframe.service_ceiling_ft > 0.0, "service_ceiling_ft", "升限必须为正",
         &issues);
+  Check(airframe.service_ceiling_ft <= 100000.0, "service_ceiling_ft",
+        "升限不得超过 100000ft", &issues);
   // 决策 38：巡航速度可选；提供则必须为正（kt TAS）。
   if (airframe.cruise_speed_kt.has_value()) {
     Check(*airframe.cruise_speed_kt > 0, "cruise_speed_kt", "巡航速度必须为正",

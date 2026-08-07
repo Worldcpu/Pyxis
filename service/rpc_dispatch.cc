@@ -34,8 +34,9 @@ void WriteId(Writer& writer, const rapidjson::Value* id) {
 }
 
 // 组装 error 响应（含 id 回显；id 不可用时 null）。
-std::string BuildError(int code, const std::string& message,
-                       const rapidjson::Value* id) {
+std::string BuildErrorImpl(
+    int code, const std::string& message,
+    const rapidjson::Value* id) {  // px 命名空间（头声明）
   rapidjson::StringBuffer buffer;
   Writer writer(buffer);
   writer.StartObject();
@@ -86,17 +87,27 @@ std::optional<RpcResult> DispatchOne(
                            : nullptr;
   // 无效请求必须响应（id null）——通知豁免不适用。
   if (method == nullptr) {
-    return RpcResult{false, BuildError(kInvalidRequest, "invalid request", id),
+    return RpcResult{false,
+                     BuildErrorImpl(kInvalidRequest, "invalid request", id),
                      kInvalidRequest, ""};
   }
 
   const auto it = handlers.find(method->GetString());
   if (it == handlers.end()) {
     if (!has_id) return std::nullopt;  // 通知：未知方法静默。
-    return RpcResult{false, BuildError(kMethodNotFound, "method not found", id),
+    return RpcResult{false,
+                     BuildErrorImpl(kMethodNotFound, "method not found", id),
                      kMethodNotFound, ""};
   }
 
+  // 本项目 handler 契约：params 为对象（缺省空对象）。非对象（数组/
+  // 标量/null）会触发 rapidjson 断言（handler 内 HasMember）——先拒。
+  if (doc.HasMember("params") && !doc["params"].IsObject()) {
+    if (!has_id) return std::nullopt;  // 通知：静默。
+    return RpcResult{
+        false, BuildErrorImpl(kInvalidRequest, "params must be an object", id),
+        kInvalidRequest, ""};
+  }
   const rapidjson::Value empty(rapidjson::kObjectType);
   const auto result =
       it->second(doc.HasMember("params") ? doc["params"] : empty);
@@ -108,7 +119,7 @@ std::optional<RpcResult> DispatchOne(
   // 业务错误：透传错误码与 handler 消息（空则兜底文本）。
   const std::string message =
       result.error_message.empty() ? "handler error" : result.error_message;
-  return RpcResult{false, BuildError(result.error_code, message, id),
+  return RpcResult{false, BuildErrorImpl(result.error_code, message, id),
                    result.error_code, message};
 }
 
@@ -119,14 +130,15 @@ RpcResult DispatchRpc(
     const std::unordered_map<std::string, RpcHandler>& handlers) {
   rapidjson::Document doc;
   if (doc.Parse(request_json.c_str()).HasParseError()) {
-    return {false, BuildError(kParseError, "parse error", nullptr), kParseError,
-            ""};
+    return {false, BuildErrorImpl(kParseError, "parse error", nullptr),
+            kParseError, ""};
   }
 
   if (doc.IsArray()) {
     // batch：逐元素分派；通知元素无占位；空 batch 是无效请求（§2.0）。
     if (doc.Empty()) {
-      return {false, BuildError(kInvalidRequest, "invalid request", nullptr),
+      return {false,
+              BuildErrorImpl(kInvalidRequest, "invalid request", nullptr),
               kInvalidRequest, ""};
     }
     rapidjson::StringBuffer buffer;
@@ -136,7 +148,7 @@ RpcResult DispatchRpc(
       if (!element.IsObject()) {
         // 无效元素 → 错误条目（id null，§2.0）。
         const std::string error =
-            BuildError(kInvalidRequest, "invalid request", nullptr);
+            BuildErrorImpl(kInvalidRequest, "invalid request", nullptr);
         writer.RawValue(error.c_str(), error.size(), rapidjson::kObjectType);
         continue;
       }
@@ -152,7 +164,7 @@ RpcResult DispatchRpc(
 
   if (!doc.IsObject()) {
     // 结构合法但非请求（字符串/数字）——无效请求而非解析错误。
-    return {false, BuildError(kInvalidRequest, "invalid request", nullptr),
+    return {false, BuildErrorImpl(kInvalidRequest, "invalid request", nullptr),
             kInvalidRequest, ""};
   }
 
@@ -161,6 +173,12 @@ RpcResult DispatchRpc(
     return {true, "", 0, ""};  // 单通知：无响应。
   }
   return *result;
+}
+
+// 公开信封（头声明）：传输层与分派层共用同一 error 序列化（审查修复）。
+std::string BuildError(int code, const std::string& message,
+                       const rapidjson::Value* id) {
+  return BuildErrorImpl(code, message, id);
 }
 
 }  // namespace px
