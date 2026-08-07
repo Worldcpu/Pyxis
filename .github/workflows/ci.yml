@@ -126,7 +126,14 @@ jobs:
             # px_tests 的 unitbuf 进度日志会被吞掉，挂死点不可见。
             # timeout 120：挂死时 120s 强制退出（退出码 124）并保留实时日志。
             # 注意多配置生成器产物在配置子目录（Debug/Release/）下。
-            timeout 120 ./build/${{ matrix.config }}/tests/cpp/${{ matrix.ctest_config }}/px_tests.exe
+            # set -x 诊断：timeout 曾返回 127 且无报错输出（路径/命令解析不明）。
+            exe=./build/${{ matrix.config }}/tests/cpp/${{ matrix.ctest_config }}/px_tests.exe
+            set -x
+            pwd
+            ls -la "$exe"
+            command -v timeout
+            timeout 120 "$exe"
+            echo "px_tests rc=$?"
           else
             ctest --test-dir build/${{ matrix.config }} -j $(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4) --timeout 300 --output-on-failure
           fi
