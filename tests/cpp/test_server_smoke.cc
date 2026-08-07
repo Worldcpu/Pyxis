@@ -100,7 +100,8 @@ void OnConnect(uv_connect_t* req, int status) {
   c->connect_ok = true;
   c->write_req.data = c;
   const uv_buf_t buf =
-      uv_buf_init(const_cast<char*>(c->request.data()), c->request.size());
+      uv_buf_init(const_cast<char*>(c->request.data()),
+                  static_cast<unsigned int>(c->request.size()));
   uv_write(&c->write_req, reinterpret_cast<uv_stream_t*>(&c->socket), &buf, 1,
            OnWrite);
 }
@@ -144,7 +145,13 @@ TEST_CASE("server: POST /rpc 集成冒烟（真实 socket 全链路）",
 
   uv_run(&loop, UV_RUN_DEFAULT);
   server.Close();  // 与 uv_run 同线程（loop 线程）——bf 契约
-  uv_loop_close(&loop);
+  // EOF 分支的 uv_stop 使 uv_run 在 close 回调（uv__finish_close）执行前
+  // 返回——此时所有 uv_close 排队的 handle（客户端 socket + 服务器连接
+  // tcp/timer + listener）仍计入 active_handles，直接 uv_loop_close 会
+  // 返回 UV_EBUSY 并泄漏 loop 内部结构（LSan 704B）。补跑一轮让
+  // uv__run_closing_handles finalize 全部 handle，再关闭 loop。
+  uv_run(&loop, UV_RUN_NOWAIT);
+  REQUIRE(uv_loop_close(&loop) == 0);
 
   // 断言全在主线程（回调只记录状态）。
   REQUIRE(client.error.empty());
