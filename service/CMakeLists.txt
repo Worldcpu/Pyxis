@@ -8,6 +8,9 @@ add_library(px_service STATIC
   pln_export.cc
   rpc_dispatch.cc
   bf_rpc.cc
+  http_rpc.cc
+  plan_handlers.cc
+  airframe_json.cc
 )
 
 target_include_directories(px_service PUBLIC
@@ -16,8 +19,12 @@ target_include_directories(px_service PUBLIC
   ${rapidjson_SOURCE_DIR}/include
 )
 
+# bf_adapter.h（bf→px 错误桥接）供 plan_handlers 错误映射使用。
+target_include_directories(px_service PRIVATE ${CMAKE_SOURCE_DIR}/lib/core)
+
 target_link_libraries(px_service PUBLIC
   px_core
+  px_flightplan   # plan handler 编排域层（FromBf/配载/高度/校验）
   bf_service_lib  # 决策 15 薄桥接：bf handler 经 bf_rpc 透传，不再死代码
 )
 

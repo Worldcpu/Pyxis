@@ -29,6 +29,11 @@ std::vector<AirframeIssue> ValidateAirframe(const Airframe& airframe) {
         &issues);
   Check(airframe.service_ceiling_ft > 0.0, "service_ceiling_ft", "升限必须为正",
         &issues);
+  // 决策 38：巡航速度可选；提供则必须为正（kt TAS）。
+  if (airframe.cruise_speed_kt.has_value()) {
+    Check(*airframe.cruise_speed_kt > 0, "cruise_speed_kt", "巡航速度必须为正",
+          &issues);
+  }
   return issues;
 }
 

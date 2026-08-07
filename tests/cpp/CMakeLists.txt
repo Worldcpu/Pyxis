@@ -2,20 +2,27 @@
 
 add_executable(px_tests
   test_airframe.cc
+  test_airframe_json.cc
+  test_airport_index.cc
   test_bf_rpc.cc
   test_cache_policy.cc
   test_flightplan_domain.cc
+  test_http_rpc.cc
   test_json_module.cc
   test_plan_json.cc
+  test_plan_handlers.cc
   test_pln_export.cc
   test_result.cc
   test_rpc_dispatch.cc
+  test_server_smoke.cc
 )
 
 target_link_libraries(px_tests PRIVATE
   px_core
   px_flightplan
+  px_navdata
   px_service
+  bf_http_server  # 集成冒烟：真实 HTTP 传输（S4b，决策 50）
   Catch2::Catch2WithMain
 )
 

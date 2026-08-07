@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -86,6 +87,16 @@ struct FlightPlan {
   PlanChecks checks;
   bool mora_checked = true;  // 决策 26：手写航路 false（前端提示）
   bool experimental = false;  // 决策 21：实验性引擎标志
+
+  // 调度单头部回显（决策 45：请求带 callsign/etd，响应回显——JSON 唯一真源；
+  // 前端显示仍可优先表单状态）。
+  std::string callsign;  // 呼号（可选，空 = 未填）
+  std::string etd;  // 预计离场时刻（ISO 8601 文本，原样回显）
+  std::string
+      alternate;  // 备降机场 ICAO（决策 14：前端选中备降传入；空 = 未选）
+  std::string wind_source =
+      "none";  // 风源标注（决策 8：默认无风；Phase 11 handler 改填）
+  uint32_t seed = 0;  // 决策 7：候选种子（"换一批"由 px 管理，meta 携带复现）
 };
 
 }  // namespace px

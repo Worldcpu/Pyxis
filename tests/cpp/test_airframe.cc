@@ -92,3 +92,30 @@ TEST_CASE("airframe: variant 必填", "[airframe][unit]") {
   REQUIRE(issues.size() == 1);
   CHECK(issues[0].field == "variant");
 }
+
+TEST_CASE("airframe: 巡航速度（决策 38：可选，提供则 > 0）",
+          "[airframe][unit]") {
+  {
+    auto a = MakeValid();
+    a.cruise_speed_kt = 437;  // A320 典型巡航 TAS
+    CHECK(px::ValidateAirframe(a).empty());
+  }
+  {
+    auto a = MakeValid();
+    a.cruise_speed_kt = 0;  // 非法
+    const auto issues = px::ValidateAirframe(a);
+    REQUIRE(issues.size() == 1);
+    CHECK(issues[0].field == "cruise_speed_kt");
+  }
+  {
+    auto a = MakeValid();
+    a.cruise_speed_kt = -100;  // 非法
+    const auto issues = px::ValidateAirframe(a);
+    REQUIRE(issues.size() == 1);
+    CHECK(issues[0].field == "cruise_speed_kt");
+  }
+  {
+    auto a = MakeValid();
+    CHECK(px::ValidateAirframe(a).empty());  // 未录 = 合法（Prefile 提示缺失）
+  }
+}

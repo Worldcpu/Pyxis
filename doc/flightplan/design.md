@@ -42,9 +42,13 @@ struct FlightPlan {             // 聚合根，不可变
 ```text
 lib/module/flightplan/     纯 C++20：FlightPlan/FlightSegment/配载/altitude_planner/校验
   └─ 依赖 bf_adapter（FromBf 桥接），无 JSON/网络/UI
+lib/module/navdata/        纯 C++20：导航数据只读视图（px_navdata）——链接 bravofinder 库经
+  └─ 公开 API 读 bfdb（UnifiedCache graph/CIFP），自建机场索引 + alternates 两阶段过滤；
+     未来地图航路图数据基础（决策 48）；不动 bf 源码（fork 可干净更新）
 service/px_service         plan.routes / plan.generate / plan.alternates / plan.export /
                            airframe 四端点渲染；raw 查询透传 bf::service（薄桥接，ADR-0002）
-px_server                  libuv+llhttp WS 传输 + JSON-RPC 分派（ADR-0003）
+px_server                  HTTP/1.1 传输（复用 bf_http_server）+ JSON-RPC over POST 分派
+                           （ADR-0003/0004；决策 43：全 200 + error body，QueueWork offload 决策 44）
 src/web                    SimBrief 式设置界面（§7）；调度单文本/打印前端渲染
 src/desktop (Tauri)        目录解析（appDataDir）+ 子进程 + 写盘；无业务逻辑
 ```
@@ -71,8 +75,9 @@ plan.generate（第二步，秒级，异步等待）：
   一致性：手动 cruise_fl 时 routes 高度带联动锁 [FL,FL] 单点带（决策 25）；
          响应 meta 带 mora_checked（手写航路 false，决策 26）
 
-plan.alternates（独立）：请求 = arr + max_distance_nm(400) + min_runway_ft(7000) + avoid_icaos
-  → 距离过滤 + 跑道过滤 → 距离为先排序 → [{icao, name, distance_nm, longest_runway_ft, route}]
+plan.alternates（独立）：请求 = arr + max_distance_nm(400) + avoid_icaos
+  → px_navdata 过滤（graph 坐标大圆距离 → 4 字 ICAO → 排除，决策 12 修订：跑道过滤砍掉）
+  → 距离为先排序 → [{icao, distance_nm, route}]（name 省略——bf 无机场名称数据）
 
 plan.export：输入 = 前端回传 FlightPlan JSON + format(msfs2024/fsx/…) → 校验 → 查机场详情
   → 生成 .PLN XML → {format, filename, content}；前端 blob 下载 / Tauri 写盘
@@ -82,17 +87,19 @@ plan.export：输入 = 前端回传 FlightPlan JSON + format(msfs2024/fsx/…) �
 
 ## 5. 错误模型
 
-JSON-RPC error code 分区：`-32000` 内部 / `422` 合法但无解 / `404` 查无 / `400` 参数错。复用 `px::ErrorCode` 11 值 + `FromBfErrorCode()`，不新建枚举。bf handler 透传时 `status ≥ 400 → error`，`200 → result`。
+JSON-RPC error code 分区：`-32000` 内部 / `422` 合法但无解 / `404` 查无 / `400` 参数错。复用 `px::ErrorCode` 11 值 + `FromBfErrorCode()`，不新建枚举。bf handler 透传时 `status ≥ 400 → error`，`200 → result`。**传输层（决策 43，ADR-0004）：全部 RPC 响应（含错误）HTTP 200**，错误语义全在 body error 对象；传输层错误（非 JSON body）HTTP 400；非 POST 400。
 
 ## 6. 数据与缓存
 
-多 AIRAC：`list_cycles` 透传，请求带 `cycle` 参数（默认最新）。缓存架构（决策 19）：**先服务后建缓存**——有 .bfdb 且 provenance（cycle/loader/data_dir）匹配 → OpenCached（毫秒）；缺失/失配 → Open(源数据)（秒级立即服务）+ 后台 WriteUnified 落盘；实例不热替换（收益下次启动）。**缓存目录用户可配**（设置界面），默认平台数据目录（Tauri appDataDir/bfdb，跨平台解析归 Tauri）；路径持久化在 appdata 设置文件。px_server 参数：`--cache-dir / --data-dir / --navdata-dir`（测试运行时传参临时目录）。
+多 AIRAC：`list_cycles` 透传，请求带 `cycle` 参数（默认最新）。缓存架构（决策 19/49）：**先服务后建缓存**——有 .bfdb 且 provenance（cycle/loader/data_dir）匹配 → OpenCached（毫秒）+ px_navdata 读索引（毫秒）；缺失/失配 → Open(源数据)（立即服务 routes/generate）→ **同步 WriteUnified 落盘（首启秒级，服务上线前完成，决策 49）** → UnifiedCache::Open 建 px 机场索引 → alternates 可用；实例不热替换（收益下次启动）。**缓存目录用户可配**（设置界面），默认平台数据目录（Tauri appDataDir/bfdb，跨平台解析归 Tauri）；路径持久化在 appdata 设置文件。px_server 参数：`--cache-dir / --data-dir / --navdata-dir`（测试运行时传参临时目录）。
 
 ## 7. 在线适配（WeatherSource）
 
 Open-Meteo **批量采样**（单请求多坐标，按航路点 ≤80 点等比例抽样，参考实现逐点串行的教训）。**失败降级链不报错**：在线风温 → 手动风 → 无风；altitude auto 同步降级规则层经验。ETD 决定采样时刻，缺省当前 UTC。消费方：altitude auto（顺风时间最优）、燃油（WindProfile，fuel 域）、Navlog 字段位（决策 22）。
 
-## 8. 协议消息集（JSON-RPC 2.0）
+## 8. 协议消息集（JSON-RPC 2.0 over HTTP/1.1）
+
+传输：单路径 `POST /rpc`，全 200 + error body（决策 43，ADR-0004）；重 handler QueueWork offload（决策 44）。
 
 ```text
 px 专属: plan.routes / plan.generate / plan.alternates / plan.export

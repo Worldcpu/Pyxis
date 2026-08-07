@@ -188,3 +188,28 @@ TEST_CASE("plan JSON: altitude 规则三态渲染", "[plan][unit]") {
     CHECK(std::string(doc["altitude"]["rule"].GetString()) == "china");
   }
 }
+
+TEST_CASE("plan JSON: generate 响应回显五字段（决策 45）", "[plan][unit]") {
+  auto plan = MakePlan();
+  plan.callsign = "CCA889";
+  plan.etd = "2026-08-08T04:10Z";
+  plan.alternate = "ZUUU";
+  plan.wind_source = "none";
+  plan.seed = 7;
+  const auto doc = Parse(px::RenderPlanJson(plan));
+  CHECK(std::string(doc["callsign"].GetString()) == "CCA889");
+  CHECK(std::string(doc["etd"].GetString()) == "2026-08-08T04:10Z");
+  CHECK(std::string(doc["alternate"].GetString()) == "ZUUU");
+  CHECK(std::string(doc["wind_source"].GetString()) == "none");
+  CHECK(doc["seed"].GetUint() == 7);
+}
+
+TEST_CASE("plan JSON: 五字段默认值（未填）", "[plan][unit]") {
+  const auto plan = MakePlan();  // 默认值
+  const auto doc = Parse(px::RenderPlanJson(plan));
+  CHECK(std::string(doc["callsign"].GetString()) == "");
+  CHECK(std::string(doc["etd"].GetString()) == "");
+  CHECK(std::string(doc["alternate"].GetString()) == "");
+  CHECK(std::string(doc["wind_source"].GetString()) == "none");  // 固定
+  CHECK(doc["seed"].GetUint() == 0);
+}

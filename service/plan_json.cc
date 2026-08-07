@@ -256,6 +256,18 @@ std::string RenderPlanJson(const FlightPlan& plan) {
   writer.Key("experimental");
   writer.Bool(plan.experimental);
 
+  // 调度单头部回显（决策 45：callsign/etd/alternate/wind_source/seed 五字段）。
+  writer.Key("callsign");
+  writer.String(plan.callsign.c_str());
+  writer.Key("etd");
+  writer.String(plan.etd.c_str());
+  writer.Key("alternate");
+  writer.String(plan.alternate.c_str());
+  writer.Key("wind_source");
+  writer.String(plan.wind_source.c_str());
+  writer.Key("seed");
+  writer.Uint(plan.seed);
+
   writer.EndObject();
   return buffer.GetString();
 }

@@ -11,3 +11,4 @@ dist/
 tsconfig.tsbuildinfo
 src/desktop/src-tauri/target/
 bravofinder/
+docs/agents

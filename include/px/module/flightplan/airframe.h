@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,9 @@ struct Airframe {
   double service_ceiling_ft = 0.0;  // 升限（altitude 硬过滤）
   double unit_pax_kg = 0.0;         // 单位旅客重量（配载）
   double unit_bag_kg = 0.0;         // 单位行李重量（配载）
+  // 巡航速度（决策 38：kt TAS 整数，Prefile FPL 编码用，与燃油引擎解耦；
+  // 可选——未录则 Prefile 提示缺失）。
+  std::optional<int> cruise_speed_kt;
 };
 
 // 校验问题（决策 28：物理不等式链 + 必填）。
@@ -31,7 +35,7 @@ struct AirframeIssue {
 };
 
 // upsert 校验链：DOW ≤ MZFW ≤ MTOW、MLW ≤ MTOW、单位重量 > 0、
-// 升限 > 0、type/variant 非空。空 = 合法。
+// 升限 > 0、type/variant 非空；cruise_speed_kt 提供则 > 0。空 = 合法。
 std::vector<AirframeIssue> ValidateAirframe(const Airframe& airframe);
 
 }  // namespace px
