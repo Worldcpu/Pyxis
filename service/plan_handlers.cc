@@ -51,10 +51,8 @@ RpcResult RpcError(int code, std::string message) {
   return {false, "", code, std::move(message)};
 }
 
-RpcResult RpcError(ErrorCode code, std::string message) {
-  return RpcError(ErrorToRpcCode(code), std::move(message));
-}
-
+// ErrorCode 重载已无调用者（review 修复后统一走 int 或 const Error&——
+// CI -Werror=unused-function，勿恢复）。
 RpcResult RpcError(const Error& error) {
   return RpcError(ErrorToRpcCode(error.code), error.message);
 }
