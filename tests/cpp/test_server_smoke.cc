@@ -72,7 +72,11 @@ void OnRead(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
       uv_stop(stream->loop);
       return;
     }
+    // Windows 上服务端取消读可能以 RST（UV_ECONNRESET）呈现而非 FIN——
+    // 错误分支同样要 uv_close，否则收尾 uv_loop_close 报 UV_EBUSY 掩盖
+    // 真实错误（审查修复）。
     c->error = "read error";
+    uv_close(reinterpret_cast<uv_handle_t*>(&c->socket), nullptr);
     uv_stop(stream->loop);
     return;
   }
@@ -84,16 +88,24 @@ void OnWrite(uv_write_t* req, int status) {
   Client* c = static_cast<Client*>(req->data);
   if (status != 0) {
     c->error = "write failed";
+    uv_close(reinterpret_cast<uv_handle_t*>(&c->socket), nullptr);
     uv_stop(req->handle->loop);
     return;
   }
-  uv_read_start(reinterpret_cast<uv_stream_t*>(&c->socket), OnAlloc, OnRead);
+  const int r = uv_read_start(reinterpret_cast<uv_stream_t*>(&c->socket),
+                              OnAlloc, OnRead);
+  if (r != 0) {  // 同步失败：无读回调可指望，直接收尾（回调内不能断言）。
+    c->error = "read start failed";
+    uv_close(reinterpret_cast<uv_handle_t*>(&c->socket), nullptr);
+    uv_stop(req->handle->loop);
+  }
 }
 
 void OnConnect(uv_connect_t* req, int status) {
   Client* c = static_cast<Client*>(req->data);
   if (status != 0) {
     c->error = "connect failed";
+    uv_close(reinterpret_cast<uv_handle_t*>(&c->socket), nullptr);
     uv_stop(req->handle->loop);
     return;
   }
@@ -140,8 +152,11 @@ TEST_CASE("server: POST /rpc 集成冒烟（真实 socket 全链路）",
   sockaddr_in addr{};
   REQUIRE(uv_ip4_addr("127.0.0.1", port, &addr) == 0);
   client.connect_req.data = &client;
-  uv_tcp_connect(&client.connect_req, &client.socket,
-                 reinterpret_cast<const sockaddr*>(&addr), OnConnect);
+  // 同步失败（如 socket 状态非法）不会触发 OnConnect——返回值必须检查，
+  // 否则只能等 10s 看门狗（审查修复）。
+  REQUIRE(uv_tcp_connect(&client.connect_req, &client.socket,
+                         reinterpret_cast<const sockaddr*>(&addr),
+                         OnConnect) == 0);
 
   // 看门狗：EOF 若 10s 未达（uv_stop 永不触发，uv_run 死循环——Windows
   // 上服务端 close 语义与 Linux 不同，曾致 CI 300s 超时），强制退出并
@@ -166,8 +181,14 @@ TEST_CASE("server: POST /rpc 集成冒烟（真实 socket 全链路）",
   // 返回——此时所有 uv_close 排队的 handle（客户端 socket + 服务器连接
   // tcp/timer + listener + 看门狗）仍计入 active_handles，直接
   // uv_loop_close 会返回 UV_EBUSY 并泄漏 loop 内部结构（LSan 704B）。
-  // 补跑一轮让 uv__run_closing_handles finalize 全部 handle，再关闭 loop。
-  uv_run(&loop, UV_RUN_NOWAIT);
+  // Linux 上单次 NOWAIT 即可 finalize 全部；Windows 上 listener 的
+  // AcceptEx 取消完成经 IOCP 异步到达，可能晚于一轮 NOWAIT 的 poll
+  // 窗口——drain 到无活 handle（uv_loop_alive 计入 closing）为止，
+  // 有界迭代防 IOCP 挂起死循环。
+  int drain_rounds = 0;
+  while (uv_loop_alive(&loop) && drain_rounds++ < 1000) {
+    uv_run(&loop, UV_RUN_NOWAIT);
+  }
   REQUIRE(uv_loop_close(&loop) == 0);
 
   // 断言全在主线程（回调只记录状态）。

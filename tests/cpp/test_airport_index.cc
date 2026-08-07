@@ -117,8 +117,14 @@ TEST_CASE("FilterAlternates: 到达场自身排除（0 NM 假候选，审查修�
 
 // S1b：索引构建错误路径（不依赖真实 bfdb——空/损坏文件）。
 TEST_CASE("AirportIndex::Open: 不存在的 bfdb 返回 kDataMissing") {
-  const auto result =
-      px::AirportIndex::Open("/nonexistent/pyxis-test/never.bfdb");
+  // 用临时目录构造必然不存在的路径（原硬编码 /nonexistent/... 在
+  // Windows 上解析为盘根相对路径 \nonexistent\...，语义漂移——审查修复）。
+  namespace fs = std::filesystem;
+  const fs::path dir =
+      fs::temp_directory_path() /
+      ("pyxis-missing-" + std::to_string(std::random_device{}()));
+  const fs::path file = dir / "never.bfdb";  // 不创建目录/文件——必然不存在
+  const auto result = px::AirportIndex::Open(file.string());
   REQUIRE(!result.has_value());
   CHECK(result.error().code == px::ErrorCode::kDataMissing);
 }

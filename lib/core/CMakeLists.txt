@@ -17,8 +17,11 @@ target_compile_features(px_core INTERFACE cxx_std_20)
 # （fmt/Catch2 自带 /W4）与 bf 子模块，把第三方代码的警告也升级为错误。
 # 警告全开 + 视警告为错误（GCC/Clang 与 MSVC 对齐）——本地构建行为 =
 # CI 门禁，杜绝本地绿远程红的漏网（如 unused-function/unused-parameter）。
+# /utf-8：源码为无 BOM UTF-8（含中文/° 字面量），MSVC 默认按系统代码页
+# （CP1252）解码成乱码——测试自洽通过但 .pln 导出坐标是坏字节（MSFS 无法
+# 解析）、HTTP 中文错误消息损坏（审查修复，对齐 GCC/Clang 默认 UTF-8）。
 target_compile_options(px_core INTERFACE
-  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W3 /WX>
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/utf-8 /W3 /WX>
   $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wall -Wextra -Werror>)
 
 # Windows：uv.h 引入 windows.h 的 min/max 宏，破坏 rapidjson/bf 头中的
