@@ -285,4 +285,32 @@ std::string RenderPlanJson(const FlightPlan& plan) {
   return buffer.GetString();
 }
 
+// 航路分析 JSON（决策 54）：成功 {valid, cycle, distance_nm}；失败
+// {valid, cycle, errors:[{message}]}——errors 来自 bf ParseRoute 语义消息。
+std::string RenderAnalyzeJson(const AnalyzeResult& result) {
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  writer.StartObject();
+  writer.Key("valid");
+  writer.Bool(result.valid);
+  writer.Key("cycle");
+  writer.Int(result.cycle);
+  if (result.valid) {
+    writer.Key("distance_nm");
+    writer.Double(result.distance_nm);
+  } else {
+    writer.Key("errors");
+    writer.StartArray();
+    for (const auto& message : result.errors) {
+      writer.StartObject();
+      writer.Key("message");
+      writer.String(message.c_str());
+      writer.EndObject();
+    }
+    writer.EndArray();
+  }
+  writer.EndObject();
+  return buffer.GetString();
+}
+
 }  // namespace px

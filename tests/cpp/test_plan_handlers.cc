@@ -243,6 +243,31 @@ TEST_CASE("plan.generate: zfw 低于 DOW → 400（审查修复：物理不可�
   CHECK(r.error_code == 400);
 }
 
+// ---- plan.analyze（决策 54：航路合法性检查；bf ParseRoute 语义解析） ----
+
+TEST_CASE("plan.analyze: 缺 route_string / 非字符串 → 400", "[plan][unit]") {
+  const auto handlers = px::MakePlanHandlers({});
+  {
+    const auto r = Call(handlers, "plan.analyze", R"({})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+  {
+    const auto r = Call(handlers, "plan.analyze", R"({"route_string":42})");
+    CHECK(!r.ok);
+    CHECK(r.error_code == 400);
+  }
+}
+
+TEST_CASE("plan.analyze: 校验通过 + navdata 缺失 → -32000（决策 47）",
+          "[plan][unit]") {
+  const auto handlers = px::MakePlanHandlers({});
+  const auto r =
+      Call(handlers, "plan.analyze", R"({"route_string":"ZUCK TONIN ZBAA"})");
+  CHECK(!r.ok);
+  CHECK(r.error_code == -32000);
+}
+
 TEST_CASE("plan.generate: 校验通过 + navdata 缺失 → -32000", "[plan][unit]") {
   const auto handlers = px::MakePlanHandlers({});
   const auto r = Call(handlers, "plan.generate",

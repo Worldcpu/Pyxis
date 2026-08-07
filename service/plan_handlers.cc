@@ -112,6 +112,32 @@ bool OptIdList(const rapidjson::Value& params, const char* key,
   return true;
 }
 
+// plan.analyze（决策 54：航路合法性检查——bf ParseRoute 语义解析：
+// 起降场/航路点/航路存在性 + 距离全量校验，错误消息可直接作前端提示）。
+RpcResult HandleAnalyze(const rapidjson::Value& params,
+                        const PlanContext& ctx) {
+  if (!params.HasMember("route_string") || !params["route_string"].IsString()) {
+    return RpcError(400, "route_string 必填（决策 54 统一输入）");
+  }
+  if (ctx.db == nullptr) return NoDatabase();
+  const auto parsed = ctx.db->ParseRoute(params["route_string"].GetString());
+  AnalyzeResult result;
+  result.cycle = static_cast<int>(ctx.cycle);
+  if (parsed.has_value()) {
+    result.valid = true;
+    result.distance_nm = parsed.value().total_distance_nm;
+  } else {
+    const auto& error = parsed.error();
+    // 语义错误（点/航路不存在等）→ 逐条展示；其他（如数据库态）透传。
+    if (error.code != bf::ErrorCode::kRouteParseError) {
+      return RpcError(FromBfError(error));
+    }
+    result.valid = false;
+    result.errors.push_back(error.message);
+  }
+  return {true, RenderAnalyzeJson(result), 0, ""};
+}
+
 // plan.routes（决策 7/9：10 字段 → bf FindRoutes → px 候选形状）。
 RpcResult HandleRoutes(const rapidjson::Value& params, const PlanContext& ctx) {
   if (!params.HasMember("departure") || !params["departure"].IsString() ||
@@ -676,6 +702,9 @@ std::unordered_map<std::string, RpcHandler> MakePlanHandlers(PlanContext ctx) {
     }
   }
   // px 专属端点（决策 16 消息集）。
+  handlers.emplace("plan.analyze", [ctx](const rapidjson::Value& params) {
+    return HandleAnalyze(params, ctx);
+  });
   handlers.emplace("plan.routes", [ctx](const rapidjson::Value& params) {
     return HandleRoutes(params, ctx);
   });

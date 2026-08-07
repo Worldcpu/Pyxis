@@ -213,3 +213,33 @@ TEST_CASE("plan JSON: 五字段默认值（未填）", "[plan][unit]") {
   CHECK(std::string(doc["wind_source"].GetString()) == "none");  // 固定
   CHECK(doc["seed"].GetUint() == 0);
 }
+
+// ---- plan.analyze 渲染形状（决策 54） ----
+
+TEST_CASE("plan JSON: 分析成功 {valid, cycle, distance_nm}", "[plan][unit]") {
+  px::AnalyzeResult result;
+  result.valid = true;
+  result.cycle = 2607;
+  result.distance_nm = 838.165;
+  const auto doc = Parse(px::RenderAnalyzeJson(result));
+  CHECK(doc["valid"].GetBool() == true);
+  CHECK(doc["cycle"].GetInt() == 2607);
+  CHECK(doc["distance_nm"].GetDouble() == Catch::Approx(838.165));
+  CHECK(!doc.HasMember("errors"));
+}
+
+TEST_CASE("plan JSON: 分析失败 {valid, cycle, errors[]}", "[plan][unit]") {
+  px::AnalyzeResult result;
+  result.valid = false;
+  result.cycle = 2607;
+  result.errors = {"token 'XXXX' is not a known waypoint at this position",
+                   "airway 'W80' does not connect TONIN to MAKET"};
+  const auto doc = Parse(px::RenderAnalyzeJson(result));
+  CHECK(doc["valid"].GetBool() == false);
+  CHECK(doc["cycle"].GetInt() == 2607);
+  REQUIRE(doc["errors"].IsArray());
+  REQUIRE(doc["errors"].Size() == 2);
+  CHECK(std::string(doc["errors"][0]["message"].GetString()).find("XXXX") !=
+        std::string::npos);
+  CHECK(!doc.HasMember("distance_nm"));
+}

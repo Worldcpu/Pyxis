@@ -20,4 +20,15 @@ std::string RenderPlanCandidatesJson(const std::vector<FlightPlan>& candidates,
 // altitude 三元组/fuel 字段位/weights/checks/mora_checked/experimental）。
 std::string RenderPlanJson(const FlightPlan& plan);
 
+// 航路分析结果（决策 54：plan.analyze）。
+struct AnalyzeResult {
+  bool valid = false;
+  int cycle = 0;
+  double distance_nm = 0.0;         // valid=true 时有效
+  std::vector<std::string> errors;  // valid=false 时逐条（bf ParseRoute 消息）
+};
+
+// 航路分析 JSON 渲染（决策 54）：{valid, cycle, distance_nm?, errors[]}。
+std::string RenderAnalyzeJson(const AnalyzeResult& result);
+
 }  // namespace px
