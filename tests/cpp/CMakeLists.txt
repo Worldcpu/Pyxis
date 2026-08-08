@@ -33,9 +33,13 @@ target_compile_features(px_tests PRIVATE cxx_std_20)
 include(Catch)
 if(WIN32)
   # Windows 上 catch_discover_tests 的中文测试名经 ctest 传参时编码损坏
-  # （chcp 65001 无效），直接运行测试二进制绕开名字传递；
-  # 代价是 Windows 失去逐用例粒度，换取编码无关的确定性。
-  add_test(NAME px_tests COMMAND px_tests)
+  # （chcp 65001 无效），改用 ASCII 标签分区注册：既保留逐分区粒度，
+  # 又绕开中文参数传递（诊断证实：llhttp.dll 路径补齐后两分区全绿）。
+  # [server] 为唯一 libuv/socket 集成测试，超时收紧到 30s；其余 300s。
+  add_test(NAME px_tests_non_server COMMAND px_tests "~[server]")
+  add_test(NAME px_tests_server COMMAND px_tests "[server]")
+  set_tests_properties(px_tests_server PROPERTIES TIMEOUT 30)
+  set_tests_properties(px_tests_non_server PROPERTIES TIMEOUT 300)
 else()
   catch_discover_tests(px_tests)
 endif()

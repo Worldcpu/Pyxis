@@ -63,6 +63,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tl_expected)
 
+# libuv 与 llhttp 一律静态链接（Windows 诊断证实：llhttp 的
+# option(BUILD_SHARED_LIBS ... ON) 默认构建 llhttp_shared，px_tests.exe
+# 直接启动时因 PATH 中找不到 llhttp.dll 返回 0xC0000135；且该 option 会把
+# BUILD_SHARED_LIBS 写入 CACHE，污染后续依赖——fmt 因此构建了 fmtd.dll）。
+# 故在两者 FetchContent 前 FORCE 置位，之后不再恢复：fmt/Catch2 均兼容
+# 静态构建，且静态化消除全部运行时 DLL 依赖。
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
+
 # --- libuv ---
 FetchContent_Declare(
   libuv
