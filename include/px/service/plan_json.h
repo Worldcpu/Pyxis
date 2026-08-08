@@ -26,6 +26,9 @@ struct AnalyzeResult {
   int cycle = 0;
   double distance_nm = 0.0;         // valid=true 时有效
   std::vector<std::string> errors;  // valid=false 时逐条（bf ParseRoute 消息）
+  // valid=true 时完整点序列（S9.1 修订：前端规划航路图层需要几何——
+  // 父 epic 用户故事 23 要求分析后地图高亮规划航路，T1 契约补丁）。
+  std::vector<FlightPoint> points;
 };
 
 // 航路分析 JSON 渲染（决策 54）：{valid, cycle, distance_nm?, errors[]}。

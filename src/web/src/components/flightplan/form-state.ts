@@ -4,8 +4,6 @@ export interface PlanFormState {
   callsign: string;
   departure: string;
   arrival: string;
-  departureRunway: string;
-  arrivalRunway: string;
   etd: string;
   airframeType: string;
   airframeVariant: string;
@@ -30,8 +28,6 @@ export const INITIAL_FORM: PlanFormState = {
   callsign: '',
   departure: '',
   arrival: '',
-  departureRunway: '',
-  arrivalRunway: '',
   etd: '',
   airframeType: '',
   airframeVariant: '',
@@ -60,8 +56,6 @@ export function candidatesFingerprint(f: PlanFormState): string {
   return JSON.stringify({
     d: f.departure.trim().toUpperCase(),
     a: f.arrival.trim().toUpperCase(),
-    dr: f.departureRunway.trim(),
-    ar: f.arrivalRunway.trim(),
     min: f.minFl,
     max: f.maxFl,
     rule: f.altitudeRule,

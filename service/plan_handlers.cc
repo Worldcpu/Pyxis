@@ -125,6 +125,9 @@ RpcResult HandleAnalyze(const rapidjson::Value& params,
   if (parsed.has_value()) {
     result.valid = true;
     result.distance_nm = parsed.value().total_distance_nm;
+    // S9.1 修订：点序列随响应返回（前端规划航路图层）；复用候选/计划
+    // 同款 FromBf 转换，segment_index 语义一致。
+    result.points = FromBf(parsed.value()).points;
   } else {
     const auto& error = parsed.error();
     // 语义错误（点/航路不存在等）→ 逐条展示；其他（如数据库态）透传。

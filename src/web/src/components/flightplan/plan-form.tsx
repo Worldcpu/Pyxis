@@ -1,15 +1,25 @@
-// ① 生成前表单（ui-spec §3：六分区 SimBrief 式折叠组）。
-// 内联校验（onBlur + role=alert，G7/G8）、渐进披露、SimBrief 导入按钮。
+// ① 生成前表单（ui-spec §3 + S9.1 D53/D54/D57）：核心分区常展（Flight
+// Info/Aircraft/Selections/Route），仅 Optional/Fuel 折叠；Route 分区 = 大
+// 输入框 + 分析按钮 + 有效性反馈（plan.analyze）；底部生成按钮（两阶段
+// 流程 D56，enabled iff 存在有效规划航路）。跑道字段已移除（D57：随 METAR
+// 回归）。
 
-import { ChevronDown, Import } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useState, type ReactNode } from 'react';
 
-import type { Airframe, Alternate } from '../../api/types';
+import type {
+  Airframe,
+  Alternate,
+  AnalyzeResult,
+  Profile,
+  RouteCandidate,
+} from '../../api/types';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
+import { SuggestRoute } from './suggest-route';
 import {
   Collapsible,
   CollapsibleContent,
@@ -24,16 +34,26 @@ import {
 } from '../ui/select';
 import type { PlanFormState } from './form-state';
 
-/** 折叠分区标题（SimBrief 式：左标题 + 右箭头）。 */
+/** 分区（D53：核心分区无折叠头直接常展；Optional/Fuel 用 collapsible）。 */
 function Section({
   title,
   children,
+  collapsible = false,
   defaultOpen = true,
 }: {
   title: string;
   children: ReactNode;
+  collapsible?: boolean;
   defaultOpen?: boolean;
 }) {
+  if (!collapsible) {
+    return (
+      <div className="border-b border-border">
+        <div className="px-3 py-2 text-sm font-semibold">{title}</div>
+        <div className="space-y-2 px-3 pb-3">{children}</div>
+      </div>
+    );
+  }
   return (
     <Collapsible defaultOpen={defaultOpen} className="border-b border-border">
       <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-sm font-semibold hover:bg-muted">
@@ -81,9 +101,24 @@ export interface PlanFormProps {
   onChange: (next: PlanFormState) => void;
   airframes: Airframe[];
   alternates: Alternate[];
+  /** Route 分析（D54）：plan.analyze 调用方。 */
+  onAnalyzeRoute: () => void;
+  analyzing: boolean;
+  analyzed: AnalyzeResult | null;
+  /** 底部生成计划（D56 两阶段）。 */
+  onGeneratePlan: () => void;
+  generating: boolean;
+  canGenerate: boolean;
+  /** Suggest Route（D55 rev.）。 */
+  profiles: Profile[];
+  selectedProfile: string;
+  onProfileChange: (name: string) => void;
+  candidates: RouteCandidate[];
   onGenerateCandidates: () => void;
-  loading: boolean;
-  onImportSimBrief: (html: string) => void;
+  generatingCandidates: boolean;
+  hoveredCandidateIndex: number | null;
+  onHoverCandidate: (index: number | null) => void;
+  onPickCandidate: (candidate: RouteCandidate) => void;
 }
 
 export function PlanForm({
@@ -91,9 +126,21 @@ export function PlanForm({
   onChange,
   airframes,
   alternates,
+  onAnalyzeRoute,
+  analyzing,
+  analyzed,
+  onGeneratePlan,
+  generating,
+  canGenerate,
+  profiles,
+  selectedProfile,
+  onProfileChange,
+  candidates,
   onGenerateCandidates,
-  loading,
-  onImportSimBrief,
+  generatingCandidates,
+  hoveredCandidateIndex,
+  onHoverCandidate,
+  onPickCandidate,
 }: PlanFormProps) {
   const { t } = useTranslation();
   const set = (patch: Partial<PlanFormState>) => onChange({ ...value, ...patch });
@@ -117,8 +164,8 @@ export function PlanForm({
   };
 
   return (
-    <div className="h-full overflow-y-auto">
-      {/* Flight Info */}
+    <div className="flex min-h-full flex-col">
+      {/* Flight Info（D57：跑道字段移除，随 METAR 回归） */}
       <Section title={t('form.flightInfo')}>
         <div className="grid grid-cols-2 gap-2">
           <Field label={t('form.callsign')}>
@@ -151,24 +198,6 @@ export function PlanForm({
               placeholder={t('form.arrivalPlaceholder')}
               onChange={(e) => set({ arrival: e.target.value.toUpperCase() })}
               onBlur={() => setTouched((p) => ({ ...p, arrival: true }))}
-            />
-          </Field>
-          <Field label={t('form.runway')}>
-            <Input
-              value={value.departureRunway}
-              placeholder="—"
-              onChange={(e) =>
-                set({ departureRunway: e.target.value.toUpperCase() })
-              }
-            />
-          </Field>
-          <Field label={`${t('form.runway')} (Arr)`}>
-            <Input
-              value={value.arrivalRunway}
-              placeholder="—"
-              onChange={(e) =>
-                set({ arrivalRunway: e.target.value.toUpperCase() })
-              }
             />
           </Field>
         </div>
@@ -286,47 +315,83 @@ export function PlanForm({
         </div>
       </Section>
 
-      {/* Optional Entries（决策 7；Phase 10 展开） */}
-      <Section title={t('form.optional')} defaultOpen={false}>
+      {/* Optional Entries（决策 7；Phase 10 展开）——D53：仅此可折叠 */}
+      <Section title={t('form.optional')} collapsible defaultOpen={false}>
         <p className="text-xs text-muted-foreground">{t('form.optionalHint')}</p>
       </Section>
 
-      {/* Fuel Planning（决策 11/21；数值 Phase 10 填充） */}
-      <Section title={t('form.fuel')} defaultOpen={false}>
+      {/* Fuel Planning（决策 11/21；数值 Phase 10 填充）——D53：仅此可折叠 */}
+      <Section title={t('form.fuel')} collapsible defaultOpen={false}>
         <p className="text-xs text-muted-foreground">{t('form.fuelHint')}</p>
       </Section>
 
-      {/* Route */}
+      {/* Route（D54：大输入框 + 分析 + 有效性反馈） */}
       <Section title={t('form.route')}>
-        <Field label={t('form.routeString')}>
-          <Input
-            className="font-mono"
-            value={value.routeString}
-            placeholder={t('form.routePlaceholder')}
-            onChange={(e) => set({ routeString: e.target.value.toUpperCase() })}
-          />
-        </Field>
+        <textarea
+          aria-label={t('form.routeString')}
+          className="h-24 w-full resize-none rounded-md border border-input bg-background px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          value={value.routeString}
+          placeholder={t('form.routePlaceholder')}
+          onChange={(e) => set({ routeString: e.target.value.toUpperCase() })}
+        />
         <Button
           variant="outline"
           size="sm"
           type="button"
-          onClick={() => {
-            const html = window.prompt('粘贴 SimBrief OFP 页面 HTML 或 URL 内容');
-            if (html) onImportSimBrief(html);
-          }}
+          onClick={onAnalyzeRoute}
+          disabled={analyzing || value.routeString.trim() === ''}
         >
-          <Import className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('form.importSimBrief')}
+          {analyzing ? t('form.analyzing') : t('form.analyzeRoute')}
         </Button>
+        {analyzed && analyzed.valid && (
+          <p
+            role="status"
+            className="rounded-md border border-success/40 bg-success/10 px-3 py-1.5 text-xs text-success"
+          >
+            {t('form.analyzeSuccess', {
+              cycle: analyzed.cycle,
+              distance: Math.round(analyzed.distance_nm ?? 0),
+            })}
+          </p>
+        )}
+        {analyzed && !analyzed.valid && (
+          <ul
+            role="alert"
+            className="space-y-1 rounded-md border border-error/40 bg-error/10 px-3 py-1.5 text-xs text-error"
+          >
+            {(analyzed.errors ?? [{ message: t('errors.parseError') }]).map(
+              (e, i) => (
+                <li key={i}>{e.message}</li>
+              ),
+            )}
+          </ul>
+        )}
       </Section>
 
-      <div className="p-3">
+      {/* Suggest Route（D55 rev.：偏好 + 候选卡；常展核心分区） */}
+      <Section title={t('suggest.title')}>
+        <SuggestRoute
+          profiles={profiles}
+          selectedProfile={selectedProfile}
+          onProfileChange={onProfileChange}
+          candidates={candidates}
+          onGenerate={onGenerateCandidates}
+          generating={generatingCandidates}
+          routeString={value.routeString}
+          hoveredIndex={hoveredCandidateIndex}
+          onHover={onHoverCandidate}
+          onPick={onPickCandidate}
+        />
+      </Section>
+
+      {/* 底部生成（D56 两阶段：enabled iff 存在有效规划航路） */}
+      <div className="sticky bottom-0 mt-auto border-t border-border bg-background/75 p-3 backdrop-blur-md">
         <Button
           className="w-full"
-          onClick={onGenerateCandidates}
-          disabled={loading || !value.departure.trim() || !value.arrival.trim()}
+          onClick={onGeneratePlan}
+          disabled={generating || !canGenerate}
         >
-          {loading ? t('form.generating') : t('form.generateCandidates')}
+          {generating ? t('form.generating') : t('form.generatePlan')}
         </Button>
       </div>
     </div>

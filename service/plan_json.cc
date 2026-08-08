@@ -285,8 +285,9 @@ std::string RenderPlanJson(const FlightPlan& plan) {
   return buffer.GetString();
 }
 
-// 航路分析 JSON（决策 54）：成功 {valid, cycle, distance_nm}；失败
-// {valid, cycle, errors:[{message}]}——errors 来自 bf ParseRoute 语义消息。
+// 航路分析 JSON（决策 54 + S9.1 修订）：成功 {valid, cycle, distance_nm,
+// points}——points 供前端规划航路图层；失败 {valid, cycle,
+// errors:[{message}]}——errors 来自 bf ParseRoute 语义消息。
 std::string RenderAnalyzeJson(const AnalyzeResult& result) {
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -298,6 +299,12 @@ std::string RenderAnalyzeJson(const AnalyzeResult& result) {
   if (result.valid) {
     writer.Key("distance_nm");
     writer.Double(result.distance_nm);
+    writer.Key("points");
+    writer.StartArray();
+    for (const auto& point : result.points) {
+      WritePoint(writer, point);
+    }
+    writer.EndArray();
   } else {
     writer.Key("errors");
     writer.StartArray();

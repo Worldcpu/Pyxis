@@ -110,4 +110,32 @@
       animation-duration: 0.01ms !important;
     }
   }
+  /* 地图永久标签（D59）：透明底、无边框，text-shadow 描边随主题；
+     pointer-events-none 保证不挡点选/拖拽 */
+  .px-label {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    padding: 0;
+    font-weight: 600;
+    line-height: 1.2;
+    pointer-events: none;
+  }
+  /* 机场级（12px，zoom≥5；亮色深字白描边） */
+  .px-label-airport {
+    color: var(--foreground);
+    font-size: 12px;
+    text-shadow:
+      0 0 2px var(--background),
+      0 0 4px var(--background),
+      0 0 6px var(--background);
+  }
+  /* 规划航路点级（10px，zoom≥7；--background 随主题翻转，无需单独暗色规则） */
+  .px-label-waypoint {
+    color: var(--foreground);
+    font-size: 10px;
+    text-shadow:
+      0 0 2px var(--background),
+      0 0 4px var(--background);
+  }
 }

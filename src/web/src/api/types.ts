@@ -148,3 +148,23 @@ export interface AlternatesParams {
   max_distance_nm?: number;
   avoid_icaos?: string[];
 }
+
+/** plan.analyze 响应（决策 54 + S9.1 补丁：valid 时带完整点序列）。 */
+export interface AnalyzeResult {
+  valid: boolean;
+  cycle: number;
+  distance_nm?: number;
+  errors?: { message: string }[];
+  /** valid=true 时：解析航路的完整点序列（规划航路图层）。 */
+  points?: RoutePoint[];
+}
+
+/** 偏好档案（决策 55：plan.routes 参数子集，服务端 profiles.json 持久化）。 */
+export interface Profile {
+  name: string;
+  k?: number;
+  level?: 'low' | 'high';
+  min_fl?: number;
+  max_fl?: number;
+  avoid_waypoints?: string[];
+}

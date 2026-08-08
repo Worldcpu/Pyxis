@@ -1,5 +1,7 @@
-// 地图与图层系统（决策 33/40/41：Leaflet 底图随主题换源；LayerManager
-// 显式开关 + localStorage 持久化；候选全部同色 + 选中高亮；点击航路点信息卡）。
+// 地图与图层系统（决策 33/40/41 + S9.1 D51/D58/D59）：底图常显不设开关；
+// 图层开关收进右上圆角工具栏列（候选航路/航路点/备降机场）；主题切换
+// 同列（D58）。标签分层（D59）：机场级永久 Tooltip 12px（zoom≥5）、
+// 规划航路点 10px（zoom≥7，T4 接入）、候选点悬停显示（T6 接入）。
 // 审查修复：候选形状顶层 points；主题切换只换 TileLayer 源（不再重挂载）；
 // 候选变化 fitBounds；polyline key 稳定；React.memo 防无关重渲染。
 
@@ -18,9 +20,25 @@ import {
   useMap,
 } from 'react-leaflet';
 
-import type { Alternate, RouteCandidate } from '../../api/types';
+import type { Alternate, RouteCandidate, RoutePoint } from '../../api/types';
 import { useTheme, type Theme } from '../theme-provider';
+import { ThemeToggle } from '../theme-toggle';
+
+/** 规划航路（S9.1 D54：分析成功或候选替换后存在；地图主色高亮）。 */
+export interface PlannedRoute {
+  route_string: string;
+  points: RoutePoint[];
+  distance_nm?: number;
+  /** 来自候选替换（MORA 已校验）——generate 带 candidate 标记（决策 26）。 */
+  fromCandidate?: boolean;
+}
+import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '../ui/tooltip';
 
 const BASEMAPS: Record<'light' | 'dark', string> = {
   light:
@@ -28,11 +46,13 @@ const BASEMAPS: Record<'light' | 'dark', string> = {
   dark: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png',
 };
 
-const LAYER_KEYS = ['basemap', 'routes', 'waypoints', 'alternates'] as const;
+// S9.1 D51：底图常显——开关只留数据图层（旧 localStorage 中的 'basemap'
+// 键被 includes 过滤，自动失效）。
+const LAYER_KEYS = ['routes', 'waypoints', 'alternates'] as const;
 export type LayerKey = (typeof LAYER_KEYS)[number];
 const STORAGE_KEY = 'px-map-layers';
 
-/** 图层显隐（localStorage 持久化，契约：层间不互知仅经 LayerManager 注册）。 */
+/** 图层显隐（localStorage 持久化，契约：层间不互知仅经 ToolbarColumn 注册）。 */
 export function useLayerVisibility(): [
   Set<LayerKey>,
   (key: LayerKey, on: boolean) => void,
@@ -64,8 +84,22 @@ export function useLayerVisibility(): [
   return [visible, toggle];
 }
 
-/** 图层面板（SimBrief 式：SVG 图标 + 显式开关）。 */
-function LayerPanel({
+/** 地图缩放跟踪（D59：zoomend → zoomLevel，驱动标签分层渲染）。 */
+function ZoomTracker({ onZoom }: { onZoom: (zoom: number) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    const listener = () => onZoom(map.getZoom());
+    map.on('zoomend', listener);
+    onZoom(map.getZoom());
+    return () => {
+      map.off('zoomend', listener);
+    };
+  }, [map, onZoom]);
+  return null;
+}
+
+/** 右上圆角工具栏列（D58/D51）：Layers 下拉 + 主题切换；窄窗锚定地图区。 */
+function ToolbarColumn({
   visible,
   onToggle,
 }: {
@@ -73,31 +107,49 @@ function LayerPanel({
   onToggle: (key: LayerKey, on: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const labels: Record<LayerKey, string> = {
-    basemap: 'Basemap',
-    routes: t('candidates.title'),
-    waypoints: 'Waypoints',
-    alternates: 'Alternates',
+    routes: t('layers.routes'),
+    waypoints: t('layers.waypoints'),
+    alternates: t('layers.alternates'),
   };
   return (
-    <div className="absolute right-2 top-2 z-[1000] w-44 rounded-md border border-border bg-card p-2 shadow-md">
-      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-        <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-        Layers
+    <div className="absolute right-2 top-[55%] z-[1000] lg:top-2">
+      <div className="flex flex-col items-center gap-0.5 rounded-xl border border-border bg-card/80 p-1 shadow-md backdrop-blur">
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t('layers.title')}
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+              className="h-8 w-8"
+            >
+              <Layers className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('layers.title')}</TooltipContent>
+        </UITooltip>
+        <ThemeToggle />
       </div>
-      {LAYER_KEYS.map((key) => (
-        <label
-          key={key}
-          className="flex cursor-pointer items-center justify-between py-0.5 text-xs"
-        >
-          {labels[key]}
-          <Switch
-            checked={visible.has(key)}
-            onCheckedChange={(on) => onToggle(key, on)}
-            aria-label={labels[key]}
-          />
-        </label>
-      ))}
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-40 rounded-md border border-border bg-card p-2 shadow-md">
+          {LAYER_KEYS.map((key) => (
+            <label
+              key={key}
+              className="flex cursor-pointer items-center justify-between py-0.5 text-xs"
+            >
+              {labels[key]}
+              <Switch
+                checked={visible.has(key)}
+                onCheckedChange={(on) => onToggle(key, on)}
+                aria-label={labels[key]}
+              />
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -120,32 +172,36 @@ function centerOf(candidates: RouteCandidate[]): [number, number] {
   return [lat / points.length, lon / points.length];
 }
 
-/** 候选加载/变化 → fitBounds（center/zoom 挂载后不生效——审查修复）。 */
-function FitBounds({ candidates }: { candidates: RouteCandidate[] }) {
+/** 候选/规划航路加载变化 → fitBounds（center/zoom 挂载后不生效——审查修复）。 */
+function FitBounds({ points }: { points: Array<{ lat: number; lon: number }> }) {
   const map = useMap();
-  const points = useMemo(() => allPoints(candidates), [candidates]);
+  const coords = useMemo(
+    () => points.map((p) => [p.lat, p.lon] as [number, number]),
+    [points],
+  );
   useEffect(() => {
-    if (points.length === 0) return;
-    map.fitBounds(
-      points.map((p) => [p.lat, p.lon] as [number, number]),
-      { padding: [24, 24] },
-    );
-  }, [map, points]);
+    if (coords.length === 0) return;
+    map.fitBounds(coords, { padding: [24, 24] });
+  }, [map, coords]);
   return null;
 }
 
 export interface MapViewProps {
   candidates: RouteCandidate[];
-  selected: RouteCandidate | null;
+  /** 悬停候选（D55 rev.：高亮 + 临时点标签）。 */
+  hoveredCandidateIndex: number | null;
   alternates: Alternate[];
   theme: Theme;
+  /** 规划航路（S9.1 D54：主色粗线 + 永久分层标签）。 */
+  plannedRoute?: PlannedRoute | null;
 }
 
 export const MapView = memo(function MapView({
   candidates,
-  selected,
+  hoveredCandidateIndex,
   alternates,
   theme,
+  plannedRoute,
 }: MapViewProps) {
   const [visible, toggle] = useLayerVisibility();
   // 审查修复：system 主题解析统一走 provider（本地 matchMedia 快照在
@@ -154,21 +210,32 @@ export const MapView = memo(function MapView({
   void theme;
   const center = centerOf(candidates);
   const zoom = candidates.length > 0 ? 6 : 4;
+  const [zoomLevel, setZoomLevel] = useState(zoom);
 
   // 稳定引用（防止无关 re-render 触发 react-leaflet 全量更新）。
-  const selectedIndex = selected?.index ?? null;
   const routeLines = useMemo(
     () =>
       candidates.map((c) => ({
         index: c.index,
         points: c.points.map((p) => [p.lat, p.lon] as [number, number]),
-        isSelected: c.index === selectedIndex,
+        isHovered: c.index === hoveredCandidateIndex,
       })),
-    [candidates, selectedIndex],
+    [candidates, hoveredCandidateIndex],
   );
 
+  // fitBounds 输入：候选点 + 规划航路点（D54：分析后聚焦规划航路）。
+  const fitPoints = useMemo(
+    () => [...allPoints(candidates), ...(plannedRoute?.points ?? [])],
+    [candidates, plannedRoute],
+  );
+
+  // D59：标签分层——机场级 12px（zoom≥5）常显；规划航路点 10px
+  // （zoom≥7）常显；候选点仅悬停（T6 接入）。
+  const showAirportLabels = zoomLevel >= 5;
+  const showPlannedPointLabels = zoomLevel >= 7;
+
   return (
-    <div className="relative h-full w-full">
+    <div className="absolute inset-0">
       <MapContainer
         center={center}
         zoom={zoom}
@@ -176,55 +243,78 @@ export const MapView = memo(function MapView({
         zoomControl={false}
         attributionControl={true}
       >
-        {visible.has('basemap') && (
-          <TileLayer
-            url={BASEMAPS[resolvedTheme]}
-            attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-          />
-        )}
-        {candidates.length > 0 && <FitBounds candidates={candidates} />}
-        {/* 候选航路层（决策 42：全部同色细线 + 选中高亮；key 稳定防重挂载） */}
+        <ZoomTracker onZoom={setZoomLevel} />
+        {/* 底图常显（D51：无死态） */}
+        <TileLayer
+          url={BASEMAPS[resolvedTheme]}
+          attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+        />
+        {fitPoints.length > 0 && <FitBounds points={fitPoints} />}
+        {/* 候选航路层（D55 rev.：全部常灰细线；悬停卡高亮——
+            与规划航路主色区分；key 稳定防重挂载） */}
         {visible.has('routes') &&
           routeLines.map((r) => (
             <Polyline
               key={r.index}
               positions={r.points}
               pathOptions={{
-                color: r.isSelected ? '#2563EB' : '#64748B',
-                weight: r.isSelected ? 4 : 1.5,
-                opacity: r.isSelected ? 1 : 0.5,
+                color: r.isHovered ? '#94A3B8' : '#64748B',
+                weight: r.isHovered ? 3 : 1.5,
+                opacity: r.isHovered ? 1 : 0.5,
               }}
             />
           ))}
-        {/* 航路点层（决策 41：Phase 9 全部同色；点击信息卡） */}
+        {/* 航路点层（D59：端点机场标签常显 12px zoom≥5；中间点悬停候选
+            临时显示；点击信息卡——Tooltip 互斥渲染防 bindTooltip 覆盖） */}
         {visible.has('waypoints') &&
           candidates.map((c) =>
-            c.points.map((p) => (
-              <CircleMarker
-                key={`${c.index}-${p.segment_index}-${p.ident}`}
-                center={[p.lat, p.lon]}
-                radius={3}
-                pathOptions={{
-                  color: '#059669',
-                  fillColor: '#059669',
-                  fillOpacity: 0.9,
-                }}
-              >
-                <Tooltip>{p.ident}</Tooltip>
-                <Popup>
-                  <div className="space-y-0.5 font-mono text-xs">
-                    <div className="font-semibold">{p.ident}</div>
-                    {p.via && <div>via {p.via}</div>}
-                    <div>
-                      {p.lat.toFixed(4)}, {p.lon.toFixed(4)}
+            c.points.map((p) => {
+              const isAirport = p.segment_index === -1;
+              const hovered = hoveredCandidateIndex === c.index;
+              const showPermanent =
+                hovered || (isAirport && showAirportLabels);
+              return (
+                <CircleMarker
+                  key={`${c.index}-${p.segment_index}-${p.ident}`}
+                  center={[p.lat, p.lon]}
+                  radius={3}
+                  pathOptions={{
+                    color: '#059669',
+                    fillColor: '#059669',
+                    fillOpacity: 0.9,
+                  }}
+                >
+                  {showPermanent ? (
+                    <Tooltip
+                      permanent
+                      direction="top"
+                      interactive={false}
+                      className={
+                        isAirport
+                          ? 'px-label px-label-airport'
+                          : 'px-label px-label-waypoint'
+                      }
+                    >
+                      {p.ident}
+                    </Tooltip>
+                  ) : (
+                    <Tooltip>{p.ident}</Tooltip>
+                  )}
+                  <Popup>
+                    <div className="space-y-0.5 font-mono text-xs">
+                      <div className="font-semibold">{p.ident}</div>
+                      {p.via && <div>via {p.via}</div>}
+                      <div>
+                        {p.lat.toFixed(4)}, {p.lon.toFixed(4)}
+                      </div>
+                      <div className="text-muted-foreground">--</div>
                     </div>
-                    <div className="text-muted-foreground">--</div>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            )),
+                  </Popup>
+                </CircleMarker>
+              );
+            }),
           )}
-        {/* 备降机场层（lat/lon 来自服务端，审查修复） */}
+        {/* 备降机场层（lat/lon 来自服务端；D59 永久机场级标签） */}
         {visible.has('alternates') &&
           alternates.map((a) => (
             <CircleMarker
@@ -237,11 +327,74 @@ export const MapView = memo(function MapView({
                 fillOpacity: 0.6,
               }}
             >
-              <Tooltip>{`${a.icao} · ${Math.round(a.distance_nm)}NM`}</Tooltip>
+              {showAirportLabels && (
+                <Tooltip
+                  permanent
+                  direction="top"
+                  interactive={false}
+                  className="px-label px-label-airport"
+                >
+                  {`${a.icao} · ${Math.round(a.distance_nm)}NM`}
+                </Tooltip>
+              )}
             </CircleMarker>
           ))}
+        {/* 规划航路层（S9.1 D54：主色粗线 #2563EB + 永久分层标签——
+            端点机场级 12px zoom≥5，航路点 10px zoom≥7） */}
+        {plannedRoute && plannedRoute.points.length > 0 && (
+          <>
+            <Polyline
+              positions={plannedRoute.points.map(
+                (p) => [p.lat, p.lon] as [number, number],
+              )}
+              pathOptions={{ color: '#2563EB', weight: 4, opacity: 1 }}
+            />
+            {plannedRoute.points.map((p, i) => {
+              const isAirport = p.segment_index === -1;
+              const showLabel = isAirport
+                ? showAirportLabels
+                : showPlannedPointLabels;
+              return (
+                <CircleMarker
+                  key={`planned-${i}-${p.ident}`}
+                  center={[p.lat, p.lon]}
+                  radius={isAirport ? 5 : 3}
+                  pathOptions={{
+                    color: '#2563EB',
+                    fillColor: '#2563EB',
+                    fillOpacity: 0.9,
+                  }}
+                >
+                  {showLabel && (
+                    <Tooltip
+                      permanent
+                      direction="top"
+                      interactive={false}
+                      className={
+                        isAirport
+                          ? 'px-label px-label-airport'
+                          : 'px-label px-label-waypoint'
+                      }
+                    >
+                      {p.ident}
+                    </Tooltip>
+                  )}
+                  <Popup>
+                    <div className="space-y-0.5 font-mono text-xs">
+                      <div className="font-semibold">{p.ident}</div>
+                      {p.via && <div>via {p.via}</div>}
+                      <div>
+                        {p.lat.toFixed(4)}, {p.lon.toFixed(4)}
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })}
+          </>
+        )}
       </MapContainer>
-      <LayerPanel visible={visible} onToggle={toggle} />
+      <ToolbarColumn visible={visible} onToggle={toggle} />
     </div>
   );
 });

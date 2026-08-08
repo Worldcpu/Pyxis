@@ -216,16 +216,31 @@ TEST_CASE("plan JSON: 五字段默认值（未填）", "[plan][unit]") {
 
 // ---- plan.analyze 渲染形状（决策 54） ----
 
-TEST_CASE("plan JSON: 分析成功 {valid, cycle, distance_nm}", "[plan][unit]") {
+TEST_CASE("plan JSON: 分析成功 {valid, cycle, distance_nm, points}",
+          "[plan][unit]") {
   px::AnalyzeResult result;
   result.valid = true;
   result.cycle = 2607;
   result.distance_nm = 838.165;
+  // S9.1 修订：成功响应带完整点序列（前端规划航路图层）。
+  result.points = {
+      {"ZUCK", "", 29.7192, 106.6417, -1},
+      {"TONIN", "W80", 28.5, 104.2, 0},
+      {"ZBAA", "", 40.0801, 116.5846, -1},
+  };
   const auto doc = Parse(px::RenderAnalyzeJson(result));
   CHECK(doc["valid"].GetBool() == true);
   CHECK(doc["cycle"].GetInt() == 2607);
   CHECK(doc["distance_nm"].GetDouble() == Catch::Approx(838.165));
   CHECK(!doc.HasMember("errors"));
+  REQUIRE(doc.HasMember("points"));
+  REQUIRE(doc["points"].IsArray());
+  REQUIRE(doc["points"].Size() == 3);
+  CHECK(std::string(doc["points"][0]["ident"].GetString()) == "ZUCK");
+  CHECK(doc["points"][0]["segment_index"].GetInt() == -1);
+  CHECK(std::string(doc["points"][1]["via"].GetString()) == "W80");
+  CHECK(doc["points"][1]["segment_index"].GetInt() == 0);
+  CHECK(doc["points"][2]["segment_index"].GetInt() == -1);
 }
 
 TEST_CASE("plan JSON: 分析失败 {valid, cycle, errors[]}", "[plan][unit]") {

@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AppShell } from './components/app-shell';
 import { ComingSoonPage } from './pages/coming-soon';
 import { FlightPlanPage } from './pages/flightplan-page';
+import { TooltipProvider } from './components/ui/tooltip';
 
 const router = createBrowserRouter([
   {
@@ -19,7 +20,11 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <TooltipProvider>
+      <RouterProvider router={router} />
+    </TooltipProvider>
+  );
 }
 
 export default App;
