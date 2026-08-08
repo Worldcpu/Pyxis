@@ -257,7 +257,8 @@ export function FlightTask({
   const dep = plan.route.points[0];
   const arr = plan.route.points[plan.route.points.length - 1];
   const enroute_nm = distanceNm ?? plan.distances?.enroute_nm ?? plan.distance_nm;
-  const etd = form.etd || '--';
+  // EOBT 完整日期时间 → 动线图显示 HHMM（如 1040）。
+  const etd = form.etd ? form.etd.slice(11, 16).replace(':', '') : '--';
 
   return (
     <div className="h-full overflow-y-auto">

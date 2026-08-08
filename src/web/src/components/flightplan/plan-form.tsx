@@ -109,11 +109,15 @@ export interface PlanFormProps {
   onGeneratePlan: () => void;
   generating: boolean;
   canGenerate: boolean;
-  /** Suggest Route（D55 rev.）。 */
+  /** 备降菜单项 hover → 地图联动（grill 确认：仅显示该项 + 到达场虚线）。 */
+  onAlternateHover: (icao: string | null) => void;
+  /** Suggest Route（D55 rev. + 合并：候选区在 Route 分区内）。 */
   profiles: Profile[];
   selectedProfile: string;
   onProfileChange: (name: string) => void;
   candidates: RouteCandidate[];
+  /** 候选 seed（D42：换一批 = seed+1）。 */
+  candidateSeed: number;
   onGenerateCandidates: () => void;
   generatingCandidates: boolean;
   hoveredCandidateIndex: number | null;
@@ -126,6 +130,7 @@ export function PlanForm({
   onChange,
   airframes,
   alternates,
+  onAlternateHover,
   onAnalyzeRoute,
   analyzing,
   analyzed,
@@ -136,6 +141,7 @@ export function PlanForm({
   selectedProfile,
   onProfileChange,
   candidates,
+  candidateSeed,
   onGenerateCandidates,
   generatingCandidates,
   hoveredCandidateIndex,
@@ -154,13 +160,24 @@ export function PlanForm({
 
   // 审查修复：touched 状态驱动派生校验（此前缓存错误快照——SimBrief
   // 导入/候选回填写入不触发 onBlur → 错误残留）。
+  // Flight Info 全必填（用户要求）：呼号/EOBT/起降场缺一不可。
+  const required = (v: string): string | undefined =>
+    v.trim() ? undefined : t('form.required');
   const [touched, setTouched] = useState<{
+    callsign?: boolean;
+    etd?: boolean;
     departure?: boolean;
     arrival?: boolean;
   }>({});
   const icaoErrors = {
-    departure: touched.departure ? icaoError(value.departure) : undefined,
-    arrival: touched.arrival ? icaoError(value.arrival) : undefined,
+    callsign: touched.callsign ? required(value.callsign) : undefined,
+    etd: touched.etd ? required(value.etd) : undefined,
+    departure: touched.departure
+      ? (required(value.departure) ?? icaoError(value.departure))
+      : undefined,
+    arrival: touched.arrival
+      ? (required(value.arrival) ?? icaoError(value.arrival))
+      : undefined,
   };
 
   return (
@@ -168,21 +185,27 @@ export function PlanForm({
       {/* Flight Info（D57：跑道字段移除，随 METAR 回归） */}
       <Section title={t('form.flightInfo')}>
         <div className="grid grid-cols-2 gap-2">
-          <Field label={t('form.callsign')}>
+          <Field label={t('form.callsign')} error={icaoErrors.callsign}>
             <Input
               value={value.callsign}
               placeholder={t('form.callsignPlaceholder')}
               onChange={(e) => set({ callsign: e.target.value.toUpperCase() })}
+              onBlur={() => setTouched((p) => ({ ...p, callsign: true }))}
             />
           </Field>
-          <Field label={t('form.etd')}>
+          <Field label={t('form.etd')} error={icaoErrors.etd}>
+            {/* EOBT（SimBrief 式日期+时间选择；值格式 YYYY-MM-DDTHH:mm，
+                语义为 Zulu——datetime-local 原样显示字符串无时区偏移） */}
             <Input
+              className="min-w-0 [color-scheme:light] dark:[color-scheme:dark]"
+              type="datetime-local"
               value={value.etd}
-              placeholder="1040"
-              onChange={(e) =>
-                set({ etd: e.target.value.replace(/\D/g, '').slice(0, 4) })
-              }
+              onChange={(e) => set({ etd: e.target.value })}
+              onBlur={() => setTouched((p) => ({ ...p, etd: true }))}
             />
+            <p className="text-[11px] text-muted-foreground">
+              {t('form.etdHint')}
+            </p>
           </Field>
           <Field label={t('form.departure')} error={icaoErrors.departure}>
             <Input
@@ -231,13 +254,15 @@ export function PlanForm({
               <SelectTrigger>
                 <SelectValue placeholder="—" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="min-w-[12rem]">
                 {variants.map((a) => (
                   <SelectItem key={a.variant} value={a.variant}>
-                    <span className="flex items-center gap-1.5">
-                      {a.variant}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate">{a.variant}</span>
                       {experimental.has(a.perf_source) && (
-                        <Badge variant="outline">{t('form.experimental')}</Badge>
+                        <Badge variant="outline" className="shrink-0">
+                          {t('form.experimental')}
+                        </Badge>
                       )}
                     </span>
                   </SelectItem>
@@ -286,15 +311,30 @@ export function PlanForm({
           </Label>
           <Select
             value={value.alternate}
-            onValueChange={(v) => set({ alternate: v })}
+            onValueChange={(v) => {
+              set({ alternate: v });
+              onAlternateHover(v || null); // 选择锁定地图联动
+            }}
           >
             <SelectTrigger className="w-40">
               <SelectValue placeholder={t('form.noAlternate')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">{t('form.noAlternate')}</SelectItem>
+              {/* NONE 特殊处理：不联动地图（保持全部橙色方块显示） */}
+              <SelectItem
+                value=""
+                onMouseEnter={() => onAlternateHover(null)}
+                onMouseLeave={() => onAlternateHover(null)}
+              >
+                {t('form.noAlternate')}
+              </SelectItem>
               {alternates.map((a) => (
-                <SelectItem key={a.icao} value={a.icao}>
+                <SelectItem
+                  key={a.icao}
+                  value={a.icao}
+                  onMouseEnter={() => onAlternateHover(a.icao)}
+                  onMouseLeave={() => onAlternateHover(null)}
+                >
                   {a.icao} · {Math.round(a.distance_nm)}NM
                 </SelectItem>
               ))}
@@ -315,17 +355,13 @@ export function PlanForm({
         </div>
       </Section>
 
-      {/* Optional Entries（决策 7；Phase 10 展开）——D53：仅此可折叠 */}
-      <Section title={t('form.optional')} collapsible defaultOpen={false}>
-        <p className="text-xs text-muted-foreground">{t('form.optionalHint')}</p>
-      </Section>
-
       {/* Fuel Planning（决策 11/21；数值 Phase 10 填充）——D53：仅此可折叠 */}
       <Section title={t('form.fuel')} collapsible defaultOpen={false}>
         <p className="text-xs text-muted-foreground">{t('form.fuelHint')}</p>
       </Section>
 
-      {/* Route（D54：大输入框 + 分析 + 有效性反馈） */}
+      {/* Route（D54 + 合并：大输入框 + 分析 + 有效性反馈 + 候选区——
+          偏好/生成·换一批/竖栏候选卡） */}
       <Section title={t('form.route')}>
         <textarea
           aria-label={t('form.routeString')}
@@ -366,15 +402,13 @@ export function PlanForm({
             )}
           </ul>
         )}
-      </Section>
-
-      {/* Suggest Route（D55 rev.：偏好 + 候选卡；常展核心分区） */}
-      <Section title={t('suggest.title')}>
+        {/* 候选区（合并进 Route：偏好 + 生成/换一批 + 竖栏） */}
         <SuggestRoute
           profiles={profiles}
           selectedProfile={selectedProfile}
           onProfileChange={onProfileChange}
           candidates={candidates}
+          seed={candidateSeed}
           onGenerate={onGenerateCandidates}
           generating={generatingCandidates}
           routeString={value.routeString}
@@ -382,6 +416,51 @@ export function PlanForm({
           onHover={onHoverCandidate}
           onPick={onPickCandidate}
         />
+      </Section>
+
+      {/* Route Finder（grill 确认：高级航路编辑器——途经/避让点 + 高度带，
+          放页面最后；折叠启用——高级选项渐进披露） */}
+      <Section title={t('routeFinder.title')} collapsible defaultOpen={false}>
+        <Field label={t('routeFinder.forcedPoints')}>
+          <Input
+            className="font-mono"
+            value={value.forcedPoints}
+            placeholder={t('routeFinder.forcedHint')}
+            onChange={(e) => set({ forcedPoints: e.target.value.toUpperCase() })}
+          />
+        </Field>
+        <Field label={t('routeFinder.avoidWaypoints')}>
+          <Input
+            className="font-mono"
+            value={value.avoidWaypoints}
+            placeholder={t('routeFinder.avoidHint')}
+            onChange={(e) =>
+              set({ avoidWaypoints: e.target.value.toUpperCase() })
+            }
+          />
+        </Field>
+        <div className="flex items-center justify-between">
+          <Label className="text-xs text-muted-foreground">
+            {t('routeFinder.flBand')}
+          </Label>
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              min={0}
+              className="w-20"
+              value={value.minFl}
+              onChange={(e) => set({ minFl: e.target.value })}
+            />
+            <span className="text-xs text-muted-foreground">—</span>
+            <Input
+              type="number"
+              min={0}
+              className="w-20"
+              value={value.maxFl}
+              onChange={(e) => set({ maxFl: e.target.value })}
+            />
+          </div>
+        </div>
       </Section>
 
       {/* 底部生成（D56 两阶段：enabled iff 存在有效规划航路） */}

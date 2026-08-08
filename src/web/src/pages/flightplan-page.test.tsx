@@ -21,11 +21,13 @@ vi.mock('react-leaflet', () => ({
   TileLayer: () => null,
   Polyline: () => null,
   CircleMarker: () => null,
+  Marker: () => null,
   Tooltip: () => null,
   Popup: () => null,
   useMap: () => ({
     fitBounds: vi.fn(),
     getZoom: () => 6,
+    getSize: () => ({ x: 1280, y: 800 }),
     on: vi.fn(),
     off: vi.fn(),
   }),
@@ -60,6 +62,8 @@ function jsonRpc(result: unknown, id: number) {
   });
 }
 
+// 虚假机型 JSON（热修复：Aircraft 分区测试用假数据完成，不依赖真实
+// airframe.list；TODO：接真实 airframe.json 持久层后改为从接口取数）。
 const AIRFRAME = {
   type: 'A320',
   variant: 'Fenix A320 CFM',
@@ -111,6 +115,18 @@ function setupFetch() {
           );
         case 'plan.analyze':
           return jsonRpc(ANALYZE_OK, body.id);
+        case 'plan.routes':
+          return jsonRpc(
+            [
+              {
+                index: 0,
+                route_string: 'ZUCK TONIN W80 MAKET ZBAA',
+                total_distance_nm: 580,
+                points: ROUTE_POINTS,
+              },
+            ],
+            body.id,
+          );
         case 'plan.generate':
           return jsonRpc(VALID_FLIGHTPLAN, body.id);
         default:
@@ -142,6 +158,30 @@ describe('FlightPlanPage: 两阶段流程（S9.1 D56）', () => {
     expect(screen.getByText('Aircraft')).toBeInTheDocument();
     expect(screen.getByText('Selections')).toBeInTheDocument();
     expect(screen.getByText('Route')).toBeInTheDocument();
+  });
+
+  it('布局层级：地图受 z-0 栈隔离、任务面板浮于其上且无透明命中槽', () => {
+    setupFetch();
+    renderPage();
+    const root = document.querySelector(
+      'div.isolate.relative.h-full',
+    ) as HTMLElement;
+    expect(root).not.toBeNull();
+    // Leaflet 内部 pane 的 z-index 可达 700；地图外层必须建立 z-0 栈，
+    // 否则初始化后会覆盖 z-20 的任务面板。
+    expect(root.className).toContain('isolate');
+    expect(screen.getByTestId('map-layer').className).toContain('z-0');
+    const panel = root.querySelector('section') as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(panel.className).toContain('absolute');
+    expect(panel.className).toContain('z-20');
+    // 透明布局槽会截获右侧 pointer event，使 Leaflet 地图不能拖动。Lucide
+    // SVG 也带 aria-hidden，因此只检查页面根的直接布局子元素。
+    expect(
+      Array.from(root.children).find(
+        (child) => child.getAttribute('aria-hidden') === 'true',
+      ),
+    ).toBeUndefined();
   });
 
   it('工具栏列：Layers 下拉（三数据图层开关）+ 主题切换（T3）', async () => {
@@ -187,6 +227,11 @@ describe('FlightPlanPage: 两阶段流程（S9.1 D56）', () => {
     await user.click(await screen.findByText('A320'));
     await user.click(screen.getAllByRole('combobox')[1]);
     await user.click(await screen.findByText('Fenix A320 CFM'));
+    // Flight Info 全必填：呼号（EOBT 已预填 Zulu 默认值）。
+    await user.type(
+      screen.getByPlaceholderText('例如 CCA4101'),
+      'CCA4101',
+    );
     await user.type(
       screen.getByRole('textbox', { name: '航路串' }),
       'ZUCK TONIN W80 MAKET ZBAA',
@@ -416,6 +461,130 @@ describe('FlightPlanPage: 两阶段流程（S9.1 D56）', () => {
       ).toBeDisabled();
     });
     expect(screen.queryByText(/已在 AIRAC/)).not.toBeInTheDocument();
+  });
+
+  it('起降场变更（输入完毕后）→ Route 与 Suggest 候选清空', async () => {
+    setupFetch();
+    renderPage();
+    const user = userEvent.setup();
+    // 建立分析 + 候选。
+    await user.type(screen.getAllByPlaceholderText('4 字 ICAO')[0], 'ZUCK');
+    await user.type(screen.getAllByPlaceholderText('4 字 ICAO')[1], 'ZBAA');
+    // 等待起降场 debounce（400ms）完成后再分析——避免清空与分析竞态
+    // （全量跑 CPU 负载会拖长计时）。
+    await new Promise((r) => setTimeout(r, 600));
+    await user.type(
+      screen.getByRole('textbox', { name: '航路串' }),
+      'ZUCK TONIN W80 MAKET ZBAA',
+    );
+    await user.click(screen.getByRole('button', { name: '分析航路' }));
+    await waitFor(() => {
+      expect(screen.getByText(/已在 AIRAC/)).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: '生成候选' }));
+    await waitFor(() => {
+      expect(screen.getByText('Route input route')).toBeInTheDocument();
+    });
+    // 输入中途（不足 4 字）不清空。
+    await user.type(screen.getAllByPlaceholderText('4 字 ICAO')[0], 'Z');
+    expect(screen.getByText(/已在 AIRAC/)).toBeInTheDocument();
+    // 输入完毕（4 字 ICAO）后 debounce 400ms → 全部清空。
+    await user.type(screen.getAllByPlaceholderText('4 字 ICAO')[0], 'UUU');
+    // 全量跑时 CPU 负载会拖长 400ms debounce——超时放宽到 5s。
+    await waitFor(
+      () => {
+        expect(screen.queryByText(/已在 AIRAC/)).not.toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
+    expect(screen.queryByText('Route input route')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '生成计划' }),
+    ).toBeDisabled();
+  });
+
+  it('候选生成后按钮变"换一批航路"，点击 seed+1 重新搜索（D42）', async () => {
+    const seeds: (number | undefined)[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)) as {
+          method: string;
+          params: { random_seed?: number };
+          id: number;
+        };
+        switch (body.method) {
+          case 'airframe.list':
+            return jsonRpc([AIRFRAME], body.id);
+          case 'list_cycles':
+            return jsonRpc({ cycles: [2601] }, body.id);
+          case 'profile.list':
+            return jsonRpc([], body.id);
+          case 'plan.alternates':
+            return jsonRpc([], body.id);
+          case 'plan.routes':
+            seeds.push(body.params.random_seed);
+            return jsonRpc(
+              [
+                {
+                  index: 0,
+                  route_string: 'ZUCK TONIN W80 MAKET ZBAA',
+                  total_distance_nm: 580,
+                  points: ROUTE_POINTS,
+                },
+              ],
+              body.id,
+            );
+          default:
+            return jsonRpc(null, body.id);
+        }
+      }),
+    );
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getAllByPlaceholderText('4 字 ICAO')[0], 'ZUCK');
+    await user.type(screen.getAllByPlaceholderText('4 字 ICAO')[1], 'ZBAA');
+    // 首次：无候选 → "生成候选"，random_seed 缺省。
+    await user.click(screen.getByRole('button', { name: '生成候选' }));
+    await waitFor(() => {
+      expect(seeds).toEqual([undefined]);
+    });
+    // 生成后按钮变"换一批航路"，点击 → random_seed=1 且 seed 显示。
+    await user.click(screen.getByRole('button', { name: '换一批航路' }));
+    await waitFor(() => {
+      expect(seeds).toEqual([undefined, 1]);
+    });
+    expect(screen.getByText('seed=1')).toBeInTheDocument();
+  });
+
+  it('Flight Info 必填：缺呼号时生成被拦截（用户要求）', async () => {
+    setupFetch();
+    renderPage();
+    const user = userEvent.setup();
+    // 起降场 + 机型 + 航路 + 分析（不填呼号）。
+    await user.type(screen.getAllByPlaceholderText('4 字 ICAO')[0], 'ZUCK');
+    await user.type(screen.getAllByPlaceholderText('4 字 ICAO')[1], 'ZBAA');
+    await new Promise((r) => setTimeout(r, 600)); // 起降场 debounce
+    await user.click(screen.getAllByRole('combobox')[0]);
+    await user.click(await screen.findByText('A320'));
+    await user.click(screen.getAllByRole('combobox')[1]);
+    await user.click(await screen.findByText('Fenix A320 CFM'));
+    await user.type(
+      screen.getByRole('textbox', { name: '航路串' }),
+      'ZUCK TONIN W80 MAKET ZBAA',
+    );
+    await user.click(screen.getByRole('button', { name: '分析航路' }));
+    await waitFor(() => {
+      expect(screen.getByText(/已在 AIRAC/)).toBeInTheDocument();
+    });
+    // 生成被拦截：呼号必填。
+    await user.click(screen.getByRole('button', { name: '生成计划' }));
+    await waitFor(() => {
+      expect(
+        screen.getByText(`呼号 — ${'必填'}`),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByText('您的航班任务')).not.toBeInTheDocument();
   });
 
   it('分析失败 → 逐条错误列表（role=alert）', async () => {

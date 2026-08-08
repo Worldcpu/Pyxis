@@ -4,7 +4,7 @@
 // 返回按钮仅表单 ↔ Task 切换。加载/错误反馈（review 修订 G1/G3）。
 
 import { useTranslation } from 'react-i18next';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Import, PenLine, TriangleAlert } from 'lucide-react';
 
 import { callRpc, RpcError } from '../lib/rpc';
@@ -74,6 +74,10 @@ export function FlightPlanPage() {
   const [replaceTarget, setReplaceTarget] = useState<RouteCandidate | null>(
     null,
   );
+  // 备降菜单联动（grill 确认：hover 临时聚焦、选择锁定；NONE → null）。
+  const [alternateFocus, setAlternateFocus] = useState<string | null>(null);
+  // 候选 seed（D42 修订：换一批 = seed+1 重新搜索）。
+  const [candidateSeed, setCandidateSeed] = useState(0);
   const [plan, setPlan] = useState<FlightPlan | null>(null);
   const [generatedFingerprint, setGeneratedFingerprint] = useState('');
   const [dismissed, setDismissed] = useState<WarningKey[]>([]);
@@ -149,9 +153,30 @@ export function FlightPlanPage() {
     return candidates.length === 1 ? candidates[0].variant : '';
   };
 
-  // 表单变更：Route 输入编辑 → 旧分析/规划航路失效（评审修复：生成门
-  // 禁必须跟随当前输入，不得沿用陈旧航路）。
+  // 起降场变更 debounce（等待输入完毕后再清空 Route/Suggest——避免
+  // 输入中途每按键误清；400ms 与 alternates 拉取同节奏）。
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    },
+    [],
+  );
+
+  // 表单变更：Route 输入编辑 → 立即失效旧分析（生成门禁跟随输入）；
+  // 起降场变更 → 输入完毕后清空 Route + Suggest 候选（地图上清空）。
   const onFormChange = (next: PlanFormState) => {
+    const depChanged = next.departure.trim() !== form.departure.trim();
+    const arrChanged = next.arrival.trim() !== form.arrival.trim();
+    if (depChanged || arrChanged) {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+      resetTimer.current = setTimeout(() => {
+        setAnalyzed(null);
+        setPlannedRoute(null);
+        setCandidates([]);
+        setHoveredIndex(null);
+      }, 400);
+    }
     if (next.routeString !== form.routeString) {
       setAnalyzed(null);
       setPlannedRoute(null);
@@ -185,10 +210,20 @@ export function FlightPlanPage() {
     }
   };
 
-  // Suggest 候选生成（D55 rev.：偏好档案参数合并 → plan.routes k=5）。
+  // 候选生成/换一批（grill 确认：无候选 → 当前 seed 生成；有候选 →
+  // seed+1 重新搜索，按钮随之变"换一批航路"）。
   const onGenerateCandidates = async () => {
     setError(null);
     setLoading('routes');
+    const nextSeed = candidates.length > 0 ? candidateSeed + 1 : candidateSeed;
+    // Route Finder（高级编辑）参数：逗号分隔列表。
+    const idList = (s: string): string[] | undefined => {
+      const items = s
+        .split(',')
+        .map((x) => x.trim().toUpperCase())
+        .filter(Boolean);
+      return items.length > 0 ? items : undefined;
+    };
     try {
       const profile = profiles.find((p) => p.name === selectedProfile);
       const params: RoutesParams = {
@@ -198,10 +233,16 @@ export function FlightPlanPage() {
         min_fl: profile?.min_fl ?? toOptionalNumber(form.minFl),
         max_fl: profile?.max_fl ?? toOptionalNumber(form.maxFl),
         level: profile?.level,
-        avoid_waypoints: profile?.avoid_waypoints,
+        forced_points: idList(form.forcedPoints),
+        avoid_waypoints: [
+          ...(profile?.avoid_waypoints ?? []),
+          ...(idList(form.avoidWaypoints) ?? []),
+        ],
+        random_seed: nextSeed > 0 ? nextSeed : undefined,
       };
       const result = await callRpc<RouteCandidate[]>('plan.routes', params);
       setCandidates(result);
+      setCandidateSeed(nextSeed);
       setHoveredIndex(null);
     } catch (e) {
       setError(describeError(e));
@@ -250,6 +291,18 @@ export function FlightPlanPage() {
       return;
     }
     if (!plannedRoute) return;
+    // Flight Info 全必填（用户要求）：呼号/EOBT/起降场缺一不可。
+    const requiredFields: Array<[string, string]> = [
+      [t('form.callsign'), form.callsign],
+      [t('form.etd'), form.etd],
+      [t('form.departure'), form.departure],
+      [t('form.arrival'), form.arrival],
+    ];
+    const missing = requiredFields.find(([, v]) => v.trim() === '');
+    if (missing) {
+      setError(`${missing[0]} — ${t('form.required')}`);
+      return;
+    }
     // zfw 模式空输入提前拦截（审查修复：字段被 JSON 丢弃 → 后端报
     // 泛化"配载参数必填"且不指明缺哪个）。
     if (form.payloadMode === 'zfw' && form.zfwKg.trim() === '') {
@@ -263,7 +316,8 @@ export function FlightPlanPage() {
         route_string: plannedRoute.route_string,
         airframe: currentAirframe,
         callsign: form.callsign || undefined,
-        etd: form.etd || undefined,
+        // EOBT 完整日期时间 → 后端 HHMM（4 位）。
+        etd: form.etd ? form.etd.slice(11, 16).replace(':', '') : undefined,
         alternate: form.alternate || undefined,
         min_fl: toOptionalNumber(form.minFl),
         max_fl: toOptionalNumber(form.maxFl),
@@ -409,18 +463,23 @@ export function FlightPlanPage() {
   );
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col lg:flex-row">
-      {/* 地图背景层（S9.1 D50：absolute inset-0 覆盖全容器；任务面板玻璃浮层） */}
-      <MapView
-        candidates={candidates}
-        hoveredCandidateIndex={hoveredIndex}
-        alternates={alternates}
-        theme={theme}
-        plannedRoute={plannedRoute}
-      />
-      {/* 地图槽（T3 验收：窄窗 min-h-[240px]；flex 强制面板 ≤55% + 地图 ≥240px） */}
-      <div className="relative min-h-[240px] flex-1 lg:min-h-0" aria-hidden />
-      <section className="relative z-10 flex w-full max-h-[55%] shrink-0 flex-col overflow-y-auto border-b border-border bg-background/75 backdrop-blur-md lg:max-h-none lg:w-96 lg:border-b-0 lg:border-r">
+    <div className="isolate relative h-full min-h-0 overflow-hidden">
+      {/* 地图背景层（S9.1 D50：真正的 absolute 全屏底层；z-0 栈隔离，
+          Leaflet pane z-index 不得越过任务/导航浮层）。 */}
+      <div data-testid="map-layer" className="absolute inset-0 z-0">
+        <MapView
+          candidates={candidates}
+          hoveredCandidateIndex={hoveredIndex}
+          alternates={alternates}
+          theme={theme}
+          plannedRoute={plannedRoute}
+          alternateFocus={alternateFocus}
+        />
+      </div>
+      {/* 任务面板（3:7 分屏：宽窗占 30% + 最小宽度保底，玻璃浮层盖在
+          全屏地图背景上——地图视觉完整；rail 的 border-r 为分割线；
+          窄窗上方 55%）。 */}
+      <section className="px-glass absolute inset-x-0 top-0 z-20 flex max-h-[55%] w-full flex-col overflow-y-auto border-b border-border shadow-2xl lg:inset-x-auto lg:inset-y-0 lg:left-[3.5rem] lg:max-h-none lg:w-[30%] lg:min-w-80 lg:rounded-r-2xl lg:border lg:border-l-0">
         {/* 双标签（D52：本地表单 / SimBrief 导入；切换保留表单状态） */}
         {stage === 'form' && (
           <div
@@ -493,6 +552,7 @@ export function FlightPlanPage() {
                 onChange={onFormChange}
                 airframes={airframes}
                 alternates={alternates}
+                onAlternateHover={setAlternateFocus}
                 onAnalyzeRoute={onAnalyzeRoute}
                 analyzing={loading === 'analyze'}
                 analyzed={analyzed}
@@ -503,6 +563,7 @@ export function FlightPlanPage() {
                 selectedProfile={selectedProfile}
                 onProfileChange={onProfileChange}
                 candidates={candidates}
+                candidateSeed={candidateSeed}
                 onGenerateCandidates={onGenerateCandidates}
                 generatingCandidates={loading === 'routes'}
                 hoveredCandidateIndex={hoveredIndex}

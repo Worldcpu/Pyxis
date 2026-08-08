@@ -92,6 +92,11 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: 'tnum' 1; /* 数字表格对齐 */
   }
+  /* 瓦片加载失败/未加载时 Leaflet 容器用主题底色，避免深色缺省底
+     透过玻璃面板造成"暗夜模式"观感。 */
+  .leaflet-container {
+    background: var(--background);
+  }
   /* 航路串/数字等宽（Fira Code） */
   .font-mono {
     font-variant-numeric: tabular-nums;
@@ -110,32 +115,101 @@
       animation-duration: 0.01ms !important;
     }
   }
-  /* 地图永久标签（D59）：透明底、无边框，text-shadow 描边随主题；
-     pointer-events-none 保证不挡点选/拖拽 */
-  .px-label {
-    border: none;
-    box-shadow: none;
-    background: transparent;
-    padding: 0;
-    font-weight: 600;
-    line-height: 1.2;
-    pointer-events: none;
+}
+/* 任务/导航玻璃材质。放 @layer components——base 层里自定义类会被
+   utilities（如 border-border）覆盖 border-color，导致玻璃描边失效。 */
+@layer components {
+  .px-glass {
+    /* 80% 基底 + 强 blur：保留可见的玻璃透明层次（纯白 92% 会显得没有
+       毛玻璃），又不透出地图深色区域（瓦片缺失时 leaflet 容器用主题色）。 */
+    background-color: rgba(248, 250, 252, 0.8);
+    border-color: rgba(203, 213, 225, 0.9);
+    -webkit-backdrop-filter: blur(28px) saturate(1.35);
+    backdrop-filter: blur(28px) saturate(1.35);
   }
-  /* 机场级（12px，zoom≥5；亮色深字白描边） */
-  .px-label-airport {
-    color: var(--foreground);
-    font-size: 12px;
-    text-shadow:
-      0 0 2px var(--background),
-      0 0 4px var(--background),
-      0 0 6px var(--background);
+  .dark .px-glass {
+    background-color: rgba(13, 20, 36, 0.72);
+    border-color: rgba(148, 163, 184, 0.28);
   }
-  /* 规划航路点级（10px，zoom≥7；--background 随主题翻转，无需单独暗色规则） */
-  .px-label-waypoint {
-    color: var(--foreground);
-    font-size: 10px;
-    text-shadow:
-      0 0 2px var(--background),
-      0 0 4px var(--background);
-  }
+}
+
+/* 地图标签覆盖类放 @layer 之外（用户反馈根因：@layer 优先级低于非 layered
+   的 Leaflet CSS——`.leaflet-tooltip { background: #fff; color: #333 }` 曾让
+   标签呈现"白框黑字"。全部样式移出 layer 并 !important 压过默认）。 */
+.px-label {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  pointer-events: none !important;
+  color: var(--foreground) !important;
+}
+.dark .px-label {
+  color: var(--foreground) !important;
+}
+/* 机场级（12px，zoom≥5；亮色深字白描边） */
+.px-label-airport {
+  font-size: 12px !important;
+  text-shadow:
+    0 0 2px var(--background),
+    0 0 4px var(--background),
+    0 0 6px var(--background);
+}
+/* 规划航路点级（10px，zoom≥7；--background 随主题翻转，无需单独暗色规则） */
+.px-label-waypoint {
+  font-size: 10px !important;
+  text-shadow:
+    0 0 2px var(--background),
+    0 0 4px var(--background);
+}
+/* 规划航路点方块标识（热修复：仅 Route 分析航路——绿色方块；
+   suggest 候选航路保持绿色圆点） */
+.px-waypoint-box {
+  background: #059669;
+  border: 2px solid #ffffff;
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.px-waypoint-box-airport {
+  background: #047857;
+  border-radius: 3px;
+}
+/* 备降机场方块（热修复：橙色，zoom≥7 显示） */
+.px-waypoint-box-alt {
+  background: #d97706;
+  border-radius: 3px;
+}
+/* 暗色主题（用户反馈）：黑底 + 白框——纯白边框提供清晰轮廓；
+   填充保留绿/橙语义色，无阴影无光晕。 */
+.dark .px-waypoint-box,
+.dark .px-waypoint-box-airport,
+.dark .px-waypoint-box-alt {
+  border-color: #ffffff;
+  box-shadow: none;
+}
+/* 方块上方标签（用户反馈：Leaflet Tooltip 定位不可控——文字直接拼进
+   divIcon HTML，绝对定位于方块正上方居中，随主题描边）。 */
+.px-waypoint-tag {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-weight: 600;
+  line-height: 1.2;
+  font-size: 10px;
+  color: var(--foreground);
+  text-shadow:
+    0 0 2px var(--background),
+    0 0 4px var(--background);
+  pointer-events: none;
+}
+.px-waypoint-tag-airport {
+  font-size: 12px;
+  text-shadow:
+    0 0 2px var(--background),
+    0 0 4px var(--background),
+    0 0 6px var(--background);
 }

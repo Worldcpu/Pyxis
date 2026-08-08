@@ -7,12 +7,14 @@
 
 import 'leaflet/dist/leaflet.css';
 
+import L from 'leaflet';
 import { Layers } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CircleMarker,
   MapContainer,
+  Marker,
   Polyline,
   Popup,
   TileLayer,
@@ -172,7 +174,10 @@ function centerOf(candidates: RouteCandidate[]): [number, number] {
   return [lat / points.length, lon / points.length];
 }
 
-/** 候选/规划航路加载变化 → fitBounds（center/zoom 挂载后不生效——审查修复）。 */
+/** 候选/规划航路加载变化 → fitBounds（center/zoom 挂载后不生效——审查修复）。
+    地图居中修正（3:7 分屏）：宽窗下左侧 30% 被任务面板覆盖，可视中心
+    应为剩余 70% 区域的中点——用 paddingTopLeft 把内容适配进右侧可视区；
+    窄窗面板在上方，无左遮挡。 */
 function FitBounds({ points }: { points: Array<{ lat: number; lon: number }> }) {
   const map = useMap();
   const coords = useMemo(
@@ -181,7 +186,16 @@ function FitBounds({ points }: { points: Array<{ lat: number; lon: number }> }) 
   );
   useEffect(() => {
     if (coords.length === 0) return;
-    map.fitBounds(coords, { padding: [24, 24] });
+    const size = map.getSize();
+    // 面板宽 = max(30% 容器, 320px min-w) + rail 56px；lg 以下无遮挡。
+    const panelWidth =
+      window.matchMedia('(min-width: 1024px)').matches
+        ? Math.max(size.x * 0.3, 320) + 56
+        : 0;
+    map.fitBounds(coords, {
+      padding: [24, 24],
+      paddingTopLeft: [panelWidth, 0],
+    });
   }, [map, coords]);
   return null;
 }
@@ -194,6 +208,9 @@ export interface MapViewProps {
   theme: Theme;
   /** 规划航路（S9.1 D54：主色粗线 + 永久分层标签）。 */
   plannedRoute?: PlannedRoute | null;
+  /** 备降菜单 hover/选中联动：聚焦的备降场 ICAO（grill 确认——仅显示该
+      场 + 到达场橙色虚线；NONE/null = 显示全部）。 */
+  alternateFocus?: string | null;
 }
 
 export const MapView = memo(function MapView({
@@ -202,6 +219,7 @@ export const MapView = memo(function MapView({
   alternates,
   theme,
   plannedRoute,
+  alternateFocus,
 }: MapViewProps) {
   const [visible, toggle] = useLayerVisibility();
   // 审查修复：system 主题解析统一走 provider（本地 matchMedia 快照在
@@ -230,9 +248,19 @@ export const MapView = memo(function MapView({
   );
 
   // D59：标签分层——机场级 12px（zoom≥5）常显；规划航路点 10px
-  // （zoom≥7）常显；候选点仅悬停（T6 接入）。
+  // （zoom≥7）常显；候选点仅悬停（T6 接入）。备降方块阈值更高（zoom≥7，
+  // 用户要求备降 zoom 更大——更放大才显示）。
   const showAirportLabels = zoomLevel >= 5;
   const showPlannedPointLabels = zoomLevel >= 7;
+  const showAlternates = zoomLevel >= 7;
+  // 备降聚焦：到达场 = 规划航路末点（segment_index -1）；聚焦时只显示
+  // 该备降场 + 到达场 ↔ 备降场橙色虚线。
+  const arrivalPoint =
+    plannedRoute?.points.find((p) => p.segment_index === -1) ?? null;
+  const focused = alternateFocus ?? null;
+  const focusedAlternate = focused
+    ? alternates.find((a) => a.icao === focused) ?? null
+    : null;
 
   return (
     <div className="absolute inset-0">
@@ -242,11 +270,20 @@ export const MapView = memo(function MapView({
         className="h-full w-full"
         zoomControl={false}
         attributionControl={true}
+        // 循环世界（用户反馈）：minZoom 防缩小成条带；worldCopyJump = 左右
+        // 滑动跨越世界边界时自动跳回主世界——瓦片无限循环、矢量（航路/
+        // 备降）始终在主世界渲染，不会出现消失或重复条带。
+        minZoom={3}
+        worldCopyJump
       >
         <ZoomTracker onZoom={setZoomLevel} />
-        {/* 底图常显（D51：无死态） */}
+        {/* 底图常显（D51：无死态）；瓦片随世界循环（配合 worldCopyJump）。
+            跨边界跳变防刷新感：keepBuffer 预取更广、fade 关闭（缓存命中
+            直接替换）、拖动中持续更新（避免停止瞬间集中加载）。 */}
         <TileLayer
           url={BASEMAPS[resolvedTheme]}
+          keepBuffer={4}
+          updateWhenIdle={false}
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
         />
         {fitPoints.length > 0 && <FitBounds points={fitPoints} />}
@@ -314,33 +351,60 @@ export const MapView = memo(function MapView({
               );
             }),
           )}
-        {/* 备降机场层（lat/lon 来自服务端；D59 永久机场级标签） */}
+        {/* 备降机场层（橙色方块，zoom≥7 显示；菜单 hover/选中聚焦时只
+            显示聚焦场，NONE/null 显示全部；到达场 ↔ 聚焦场橙色虚线） */}
         {visible.has('alternates') &&
-          alternates.map((a) => (
-            <CircleMarker
-              key={a.icao}
-              center={[a.lat, a.lon]}
-              radius={5}
-              pathOptions={{
-                color: '#D97706',
-                fillColor: '#D97706',
-                fillOpacity: 0.6,
-              }}
-            >
-              {showAirportLabels && (
-                <Tooltip
-                  permanent
-                  direction="top"
-                  interactive={false}
-                  className="px-label px-label-airport"
-                >
-                  {`${a.icao} · ${Math.round(a.distance_nm)}NM`}
-                </Tooltip>
-              )}
-            </CircleMarker>
-          ))}
-        {/* 规划航路层（S9.1 D54：主色粗线 #2563EB + 永久分层标签——
-            端点机场级 12px zoom≥5，航路点 10px zoom≥7） */}
+          showAlternates &&
+          (focusedAlternate
+            ? [
+                <Polyline
+                  key="alt-dash"
+                  positions={
+                    arrivalPoint
+                      ? ([
+                          [arrivalPoint.lat, arrivalPoint.lon],
+                          [focusedAlternate.lat, focusedAlternate.lon],
+                        ] as [number, number][])
+                      : ([] as [number, number][])
+                  }
+                  pathOptions={{
+                    color: '#D97706',
+                    weight: 2,
+                    opacity: 0.6,
+                    dashArray: '6 6',
+                  }}
+                />,
+                <Marker
+                  key={focusedAlternate.icao}
+                  position={[focusedAlternate.lat, focusedAlternate.lon]}
+                  icon={L.divIcon({
+                    className: 'px-waypoint-box px-waypoint-box-alt',
+                    html: `<span class="px-waypoint-tag px-waypoint-tag-airport">${focusedAlternate.icao} · ${Math.round(
+                      focusedAlternate.distance_nm,
+                    )}NM</span>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7],
+                  })}
+                />,
+              ]
+            : alternates.map((a) => (
+                <Marker
+                  key={a.icao}
+                  position={[a.lat, a.lon]}
+                  icon={L.divIcon({
+                    className: 'px-waypoint-box px-waypoint-box-alt',
+                    html: `<span class="px-waypoint-tag px-waypoint-tag-airport">${a.icao} · ${Math.round(
+                      a.distance_nm,
+                    )}NM</span>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7],
+                  })}
+                />
+              )))}
+        {/* 规划航路层（热修复：airway 段蓝色粗线 #2563EB；航路点绿色
+            方块标识——仅 Route 分析航路生效，suggest 候选保持圆点；
+            方块 zoom 分级显示：机场 zoom≥5 / 航路点 zoom≥7，低倍率
+            不渲染避免挤占） */}
         {plannedRoute && plannedRoute.points.length > 0 && (
           <>
             <Polyline
@@ -351,34 +415,25 @@ export const MapView = memo(function MapView({
             />
             {plannedRoute.points.map((p, i) => {
               const isAirport = p.segment_index === -1;
-              const showLabel = isAirport
+              const showAtZoom = isAirport
                 ? showAirportLabels
                 : showPlannedPointLabels;
+              if (!showAtZoom) return null; // 低倍率不渲染方块（避免挤占）
               return (
-                <CircleMarker
+                <Marker
                   key={`planned-${i}-${p.ident}`}
-                  center={[p.lat, p.lon]}
-                  radius={isAirport ? 5 : 3}
-                  pathOptions={{
-                    color: '#2563EB',
-                    fillColor: '#2563EB',
-                    fillOpacity: 0.9,
-                  }}
+                  position={[p.lat, p.lon]}
+                  icon={L.divIcon({
+                    className: isAirport
+                      ? 'px-waypoint-box px-waypoint-box-airport'
+                      : 'px-waypoint-box',
+                    html: `<span class="px-waypoint-tag${
+                      isAirport ? ' px-waypoint-tag-airport' : ''
+                    }">${p.ident}</span>`,
+                    iconSize: isAirport ? [14, 14] : [10, 10],
+                    iconAnchor: isAirport ? [7, 7] : [5, 5],
+                  })}
                 >
-                  {showLabel && (
-                    <Tooltip
-                      permanent
-                      direction="top"
-                      interactive={false}
-                      className={
-                        isAirport
-                          ? 'px-label px-label-airport'
-                          : 'px-label px-label-waypoint'
-                      }
-                    >
-                      {p.ident}
-                    </Tooltip>
-                  )}
                   <Popup>
                     <div className="space-y-0.5 font-mono text-xs">
                       <div className="font-semibold">{p.ident}</div>
@@ -388,7 +443,7 @@ export const MapView = memo(function MapView({
                       </div>
                     </div>
                   </Popup>
-                </CircleMarker>
+                </Marker>
               );
             })}
           </>

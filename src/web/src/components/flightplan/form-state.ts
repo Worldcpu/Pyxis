@@ -18,6 +18,9 @@ export interface PlanFormState {
   minFl: string;
   maxFl: string;
   altitudeRule: 'auto' | 'icao' | 'china';
+  // Route Finder（高级航路编辑器：途经点/避让点，逗号分隔，空 = 无）。
+  forcedPoints: string;
+  avoidWaypoints: string;
   // Fuel（决策 11/21；Phase 10 填充数值，表单先立住）。
   fuelPolicy: string;
   extraFuelKg: string;
@@ -28,7 +31,9 @@ export const INITIAL_FORM: PlanFormState = {
   callsign: '',
   departure: '',
   arrival: '',
-  etd: '',
+  // EOBT 默认当前 Zulu 时刻（toISOString = UTC；datetime-local 原样显示
+  // 字符串无时区偏移——选择器里的时间即 Zulu 时间）。
+  etd: new Date().toISOString().slice(0, 16),
   airframeType: '',
   airframeVariant: '',
   payloadMode: 'pax',
@@ -41,6 +46,8 @@ export const INITIAL_FORM: PlanFormState = {
   minFl: '250',
   maxFl: '410',
   altitudeRule: 'auto',
+  forcedPoints: '',
+  avoidWaypoints: '',
   fuelPolicy: '0',
   extraFuelKg: '',
   taxiMinutes: '15',
@@ -59,5 +66,7 @@ export function candidatesFingerprint(f: PlanFormState): string {
     min: f.minFl,
     max: f.maxFl,
     rule: f.altitudeRule,
+    fp: f.forcedPoints.trim().toUpperCase(),
+    aw: f.avoidWaypoints.trim().toUpperCase(),
   });
 }

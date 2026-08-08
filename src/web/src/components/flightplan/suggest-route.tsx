@@ -24,6 +24,8 @@ export interface SuggestRouteProps {
   selectedProfile: string;
   onProfileChange: (name: string) => void;
   candidates: RouteCandidate[];
+  /** 候选 seed（D42：显示 + 换一批 = seed+1）。 */
+  seed: number;
   onGenerate: () => void;
   generating: boolean;
   /** 当前 Route 输入（归一化匹配徽章）。 */
@@ -38,6 +40,7 @@ export function SuggestRoute({
   selectedProfile,
   onProfileChange,
   candidates,
+  seed,
   onGenerate,
   generating,
   routeString,
@@ -46,6 +49,7 @@ export function SuggestRoute({
   onPick,
 }: SuggestRouteProps) {
   const { t } = useTranslation();
+  const hasCandidates = candidates.length > 0;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -74,44 +78,56 @@ export function SuggestRoute({
         disabled={generating}
       >
         <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-        {generating ? t('suggest.generating') : t('suggest.generate')}
+        {generating
+          ? t('suggest.generating')
+          : hasCandidates
+            ? t('suggest.reseed')
+            : t('suggest.generate')}
       </Button>
+      {seed > 0 && (
+        <p className="text-right font-mono text-[11px] text-muted-foreground">
+          seed={seed}
+        </p>
+      )}
       {candidates.length === 0 ? (
         <p className="text-xs text-muted-foreground">{t('suggest.empty')}</p>
       ) : (
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <ul className="space-y-1.5">
           {candidates.map((c) => {
             const matched = isSameRoute(c.route_string, routeString);
             const hovered = hoveredIndex === c.index;
             return (
-              <button
-                key={c.index}
-                type="button"
-                onClick={() => onPick(c)}
-                onMouseEnter={() => onHover(c.index)}
-                onMouseLeave={() => onHover(null)}
-                className={cn(
-                  'relative flex w-44 shrink-0 flex-col gap-1 rounded-lg border border-border bg-card p-2 text-left hover:border-muted-foreground/50',
-                  hovered && 'border-muted-foreground/70',
-                  matched && 'border-secondary bg-secondary/10',
-                )}
-              >
-                {matched && (
-                  <div className="absolute right-1.5 top-1.5 rounded-md border border-transparent bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground">
-                    {t('suggest.matchBadge')}
-                  </div>
-                )}
-                <span className="line-clamp-2 font-mono text-[11px] leading-tight">
-                  {c.route_string}
-                </span>
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {c.total_distance_nm !== undefined &&
-                    `${Math.round(c.total_distance_nm)}NM`}
-                </span>
-              </button>
+              <li key={c.index}>
+                <button
+                  type="button"
+                  onClick={() => onPick(c)}
+                  onMouseEnter={() => onHover(c.index)}
+                  onMouseLeave={() => onHover(null)}
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-2.5 py-2 text-left hover:border-muted-foreground/50',
+                    hovered && 'border-muted-foreground/70',
+                    matched && 'border-secondary bg-secondary/10',
+                  )}
+                >
+                  <span className="line-clamp-2 min-w-0 flex-1 font-mono text-[11px] leading-tight">
+                    {c.route_string}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {matched && (
+                      <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                        {t('suggest.matchBadge')}
+                      </span>
+                    )}
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {c.total_distance_nm !== undefined &&
+                        `${Math.round(c.total_distance_nm)}NM`}
+                    </span>
+                  </span>
+                </button>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </div>
   );
